@@ -47,11 +47,11 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     color: white;
-    font-size: 3em;
+    font-size: 6em;
 }
 
 .buttons {
-    margin-top: 20px;
+    margin-top: 60px;
     display: flex;
     justify-content: space-between;
     width: 80vw;
@@ -62,10 +62,15 @@ button {
     background-color: #555;
     color: white;
     border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    font-size: 1em;
+    padding: 10px;
+    border-radius: 10px;  /* Adjust for desired rounding */
+    font-size: 2em;
     transition: background-color 0.25s;
+    display: flex;       /* Center the icon inside the button */
+    justify-content: center;
+    align-items: center;
+    width: 80px;         /* Fixed width and height for a square shape */
+    height: 80px;
 }
 
 button:hover {

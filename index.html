@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Countdown Timer</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Mafia Timer</title>
+    <link rel="icon" type="image/x-icon" href="/assets/img/favicon.ico">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/fontawesome.min.css">
+    <link rel="stylesheet" href="/assets/css/solid.min.css">
 </head>
 <body>
     <div class="container">
@@ -16,12 +19,12 @@
             <div id="timer">60</div>
         </div>
         <div class="buttons">
-            <button id="startPauseBtn">Start</button>
-            <button onclick="resetTimer(60)">Reset 60</button>
-            <button onclick="resetTimer(30)">Reset 30</button>
-        </div>
+            <button id="startPauseBtn"><i class="fa-solid fa-play"></i></button>
+            <button onclick="resetTimer(60)"><i class="fa-solid fa-shield"></i></button>
+            <button onclick="resetTimer(30)"><i class="fa-solid fa-shield-halved"></i></button>
+        </div>        
     </div>    
 
-    <script src="app.js"></script>
+    <script src="/assets/js/app.js"></script>
 </body>
 </html>

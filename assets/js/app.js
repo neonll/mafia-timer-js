@@ -4,8 +4,13 @@ const timerDiv = document.getElementById('timer');
 const startPauseBtn = document.getElementById('startPauseBtn');
 
 // Audio setup
-const audio1 = new Audio('sound_start.mp3');
-const audio2 = new Audio('sound_10sec.mp3');
+const audio1 = new Audio('/assets/sound/sound_start.mp3');
+const audio2 = new Audio('/assets/sound/sound_10sec.mp3');
+
+const btnPlay = '<i class="fa-solid fa-play"></i>';
+const btnPause = '<i class="fa-solid fa-pause"></i>';
+const btnReset60 = '<i class="fa-solid fa-shield"></i>';
+const btnReset30 = '<i class="fa-solid fa-shield-halved"></i>';
 
 let justStarted = true;  // flag to determine if timer was freshly started
 
@@ -41,7 +46,7 @@ function startTimer() {
                 stopAllSounds();
                 clearInterval(timerInterval);
                 timerInterval = null;
-                startPauseBtn.textContent = 'Start';
+                startPauseBtn.innerHTML = btnPlay;
             }
         }, 1000);
     }
@@ -70,15 +75,15 @@ startPauseBtn.addEventListener('click', function() {
         return;
     }
 
-    if (startPauseBtn.textContent === 'Start') {
+    if (startPauseBtn.innerHTML === btnPlay) {
         if (timeLeft <= 10) {
             audio2.play();
         }
         startTimer();
-        startPauseBtn.textContent = 'Pause';
+        startPauseBtn.innerHTML = btnPause;
     } else {
         pauseTimer();
-        startPauseBtn.textContent = 'Start';
+        startPauseBtn.innerHTML = btnPlay;
     }
 });
 
@@ -88,7 +93,7 @@ function resetTimer(value) {
     timeLeft = value;
     updateDisplay();
     updateCircle();
-    startPauseBtn.textContent = 'Start';
+    startPauseBtn.innerHTML = btnPlay;
     justStarted = true;
     
     document.querySelector('.circle').classList.remove('circle-red');

@@ -71,3 +71,9 @@ button {
 button:hover {
     background-color: #777;
 }
+
+.circle-red .circle-fg,
+.circle-red #timer {
+    stroke: red;
+    color: red;
+}

@@ -13,6 +13,13 @@ function updateDisplay() {
     timerDiv.textContent = timeLeft;
     updateCircle();
 
+    // Change the style if there are 10 seconds or less
+    if (timeLeft <= 10) {
+        document.querySelector('.circle').classList.add('circle-red');
+    } else {
+        document.querySelector('.circle').classList.remove('circle-red');
+    }
+
     if (timeLeft === 10) {
         audio2.currentTime = 0;
         audio2.play();
@@ -83,6 +90,8 @@ function resetTimer(value) {
     updateCircle();
     startPauseBtn.textContent = 'Start';
     justStarted = true;
+    
+    document.querySelector('.circle').classList.remove('circle-red');
 }
 
 function updateCircle() {

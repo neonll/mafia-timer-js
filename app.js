@@ -7,6 +7,8 @@ const startPauseBtn = document.getElementById('startPauseBtn');
 const audio1 = new Audio('sound_start.mp3');
 const audio2 = new Audio('sound_10sec.mp3');
 
+let justStarted = true;  // flag to determine if timer was freshly started
+
 function updateDisplay() {
     timerDiv.textContent = timeLeft;
 
@@ -17,9 +19,12 @@ function updateDisplay() {
 }
 
 function startTimer() {
-    if (!timerInterval) {
+    if (justStarted) {
         audio1.play();
+        justStarted = false;
+    }
 
+    if (!timerInterval) {
         timerInterval = setInterval(() => {
             if (timeLeft > 0) {
                 timeLeft--;
@@ -75,4 +80,5 @@ function resetTimer(value) {
     timeLeft = value;
     updateDisplay();
     startPauseBtn.textContent = 'Start';
+    justStarted = true;  // Resetting the flag as the timer has been reset
 }

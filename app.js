@@ -11,6 +11,7 @@ let justStarted = true;  // flag to determine if timer was freshly started
 
 function updateDisplay() {
     timerDiv.textContent = timeLeft;
+    updateCircle();
 
     if (timeLeft === 10) {
         audio2.currentTime = 0;
@@ -79,6 +80,13 @@ function resetTimer(value) {
     stopAllSounds();
     timeLeft = value;
     updateDisplay();
+    updateCircle();
     startPauseBtn.textContent = 'Start';
-    justStarted = true;  // Resetting the flag as the timer has been reset
+    justStarted = true;
+}
+
+function updateCircle() {
+    let percentage = timeLeft / 60; // adjust denominator based on maximum time
+    let offset = 301 - 301 * percentage;
+    document.querySelector('.circle-fg').style.strokeDashoffset = offset;
 }

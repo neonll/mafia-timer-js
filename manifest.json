@@ -1,0 +1,22 @@
+{
+  "name": "Mafia Timer",
+  "icons": [
+    {
+      "src": "/mafia-timer.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "/mafia-timer.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
+  "description": "Mafia Timer",
+  "theme_color": "black",
+  "background_color": "black"
+}

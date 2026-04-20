@@ -201,7 +201,7 @@ function VariantClassic({ accent = '#E63946', digitFont = 'mono' }) {
         <img src="assets/mafia-logo.png" alt="Mafia"
           style={{
             width: 200, height: 200, objectFit: 'contain',
-            filter: `drop-shadow(0 6px 24px ${hexToRgba(accent, 0.3)})`,
+            filter: `drop-shadow(0 0 20px ${hexToRgba(accent, 0.55)}) drop-shadow(0 0 48px ${hexToRgba(accent, 0.28)})`,
           }}/>
       </div>
 
@@ -224,7 +224,7 @@ function VariantClassic({ accent = '#E63946', digitFont = 'mono' }) {
             strokeLinecap="round"
             strokeDasharray={C}
             strokeDashoffset={C * (1 - pct)}
-            filter={warning ? 'url(#glow)' : undefined}
+            filter="url(#glow)"
             style={{ transition: 'stroke 0.3s' }}/>
         </svg>
         {/* end-cap dot */}
@@ -292,11 +292,11 @@ function VariantClassic({ accent = '#E63946', digitFont = 'mono' }) {
         </div>
         {/* primary control row */}
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'center' }}>
-          <SecondaryBtn onClick={() => t.reset(t.duration)} disabled={t.remainingMs === t.duration * 1000 && !t.running} ariaLabel="Reset timer">
+          <SecondaryBtn onClick={() => t.reset(t.duration)} disabled={t.remainingMs === t.duration * 1000 && !t.running} ariaLabel="Reset timer" accent={accent}>
             <StopIcon size={18}/>
           </SecondaryBtn>
           <PrimaryBtn running={t.running} onClick={() => t.running ? t.pause() : t.start()} accent={accent}/>
-          <SecondaryBtn onClick={() => setMuted(m => !m)} ghost={!muted} ariaLabel={muted ? "Unmute" : "Mute"}>
+          <SecondaryBtn onClick={() => setMuted(m => !m)} ghost={!muted} ariaLabel={muted ? "Unmute" : "Mute"} accent={accent}>
             <SoundIcon muted={muted}/>
           </SecondaryBtn>
         </div>
@@ -315,6 +315,9 @@ function PresetBtn({ duration, active, onClick, accent }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       transition: 'all 0.2s',
       position: 'relative',
+      boxShadow: active
+        ? `0 0 24px ${hexToRgba(accent, 0.35)}, 0 4px 16px ${hexToRgba(accent, 0.2)}`
+        : `0 0 14px ${hexToRgba(accent, 0.1)}`,
     }}>
       <span style={{
         fontFamily: '"JetBrains Mono", monospace',
@@ -353,7 +356,7 @@ function PrimaryBtn({ running, onClick, accent }) {
   );
 }
 
-function SecondaryBtn({ children, onClick, disabled, ghost, ariaLabel }) {
+function SecondaryBtn({ children, onClick, disabled, ghost, ariaLabel, accent }) {
   return (
     <button onClick={onClick} disabled={disabled} aria-label={ariaLabel} style={{
       width: 52, height: 52, borderRadius: '50%',
@@ -364,6 +367,7 @@ function SecondaryBtn({ children, onClick, disabled, ghost, ariaLabel }) {
       opacity: disabled ? 0.3 : 1,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       transition: 'all 0.2s',
+      boxShadow: `0 0 18px ${hexToRgba(accent || '#E63946', 0.18)}`,
     }}>{children}</button>
   );
 }

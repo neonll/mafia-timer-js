@@ -200,7 +200,7 @@ function VariantClassic({ accent = '#E63946', digitFont = 'mono' }) {
       }}>
         <img src="assets/mafia-logo.png" alt="Mafia"
           style={{
-            width: 132, height: 132, objectFit: 'contain',
+            width: 200, height: 200, objectFit: 'contain',
             filter: `drop-shadow(0 6px 24px ${hexToRgba(accent, 0.3)})`,
           }}/>
       </div>

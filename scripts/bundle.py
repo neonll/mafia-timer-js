@@ -4,16 +4,18 @@ Round-trip helper for the self-unpacking index.html bundle.
 
 index.html embeds the app as a base64+gzipped blob inside a manifest
 JSON on a single line, plus an escaped HTML template on another.
-This script decodes both into /tmp/bundle/ for editing, then re-encodes
-them back into index.html in place.
+The unbundled sources live in ``src/`` under version control — this
+script decodes them back out for a fresh checkout (``extract``) and
+repacks them into index.html after edits (``inject``).
 
 Usage:
   python3 scripts/bundle.py extract index.html
-      Writes /tmp/bundle/app.jsx and /tmp/bundle/template.html.
+      Overwrites src/app.jsx and src/template.html with the current
+      decoded contents of index.html.
 
   python3 scripts/bundle.py inject index.html
-      Reads /tmp/bundle/{app.jsx,template.html} and rewrites the
-      manifest + template lines in index.html in place.
+      Reads src/{app.jsx,template.html} and rewrites the manifest +
+      template lines in index.html in place.
 
   python3 scripts/bundle.py verify index.html
       Extract, inject-to-temp, re-extract, and assert the decoded
@@ -30,7 +32,8 @@ import shutil
 import tempfile
 
 APP_UUID = "e54b79ec-d2e6-4b1c-987c-9fa59d5910eb"
-WORKDIR = pathlib.Path("/tmp/bundle")
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+WORKDIR = REPO_ROOT / "src"
 APP_PATH = WORKDIR / "app.jsx"
 TEMPLATE_PATH = WORKDIR / "template.html"
 

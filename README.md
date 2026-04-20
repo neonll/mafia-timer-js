@@ -24,8 +24,11 @@ assets/
   sound_10sec.mp3 played when 10 seconds remain
   favicon.ico
 robots.txt
+src/
+  app.jsx         unbundled React/JSX source for the app
+  template.html   unbundled HTML shell injected after the unpack
 scripts/
-  bundle.py       extract / inject the app source in index.html
+  bundle.py       extract / inject src/ into index.html
 ```
 
 ## Bundle
@@ -44,15 +47,20 @@ and `new Audio('assets/…')` calls resolve.
 
 ### Editing the app
 
-The app source lives inside `index.html` as a gzipped blob, so direct text
-edits aren't practical. Use `scripts/bundle.py`:
+The unbundled sources are tracked in `src/`, so edits show up clean in
+diffs — `index.html` itself is a derived artifact. Workflow:
 
 ```bash
-python3 scripts/bundle.py extract index.html
-# edit /tmp/bundle/app.jsx and/or /tmp/bundle/template.html
+# edit src/app.jsx and/or src/template.html
 python3 scripts/bundle.py inject  index.html
 python3 scripts/bundle.py verify  index.html
+# commit src/ + index.html together
 ```
+
+`extract` is the reverse: `python3 scripts/bundle.py extract index.html`
+overwrites `src/` with whatever is currently packed into `index.html`.
+Use it to bootstrap a fresh checkout or to recover if `src/` and
+`index.html` drift out of sync.
 
 `verify` round-trips extract → inject → extract and asserts the decoded
 sources are byte-identical (gzip output itself is not bit-stable, but the

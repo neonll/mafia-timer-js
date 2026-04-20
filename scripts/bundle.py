@@ -85,7 +85,10 @@ def inject(index_path):
     lines[MANIFEST_LINE - 1] = json.dumps(manifest, separators=(",", ":")) + "\n"
 
     new_template = TEMPLATE_PATH.read_text(encoding="utf-8")
-    lines[TEMPLATE_LINE - 1] = json.dumps(new_template) + "\n"
+    # Escape `</` as `<\/` so an inner `</script>` in the template can't close
+    # the outer <script type="__bundler/template"> tag that wraps this JSON.
+    # JSON treats `\/` as an escape for `/`, so JSON.parse still yields `</`.
+    lines[TEMPLATE_LINE - 1] = json.dumps(new_template).replace("</", "<\\/") + "\n"
 
     _write_lines(index_path, lines)
     print(f"injected: app={len(new_app)} bytes (b64={len(entry['data'])}), template={len(new_template)} chars")

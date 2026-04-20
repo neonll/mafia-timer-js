@@ -133,6 +133,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     // createElement so they execute, awaiting onload for src scripts to
     // preserve ordering (React before ReactDOM before Babel before text/babel).
     const doc = new DOMParser().parseFromString(template, 'text/html');
+
+    // Third-party scripts (Cloudflare bot telemetry, browser extensions, …)
+    // may have attached nodes to document.body before us and still hold
+    // references to them in closures. Moving them into the new body keeps
+    // those closures valid after the replaceWith below.
+    for (const node of Array.from(document.body.children)) {
+      if (node.id && node.id.startsWith('__bundler_')) continue;
+      if (node.tagName === 'SCRIPT') continue; // revival loop below re-executes scripts; skip to avoid duplicate side-effects.
+      doc.body.appendChild(node);
+    }
+
     document.documentElement.replaceWith(doc.documentElement);
     const dead = Array.from(document.scripts);
     for (const old of dead) {

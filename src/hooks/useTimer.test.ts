@@ -16,7 +16,7 @@ function fakeCues() {
     disarmWarning: vi.fn(),
     releaseWarning: vi.fn(),
     setMuted: vi.fn(),
-    debugInfo: vi.fn(() => ({ state: 'none' as const, currentTime: null, baseLatency: null, outputLatency: null, fileStart: null, warningPlaying: false, recent: [] })),
+    debugInfo: vi.fn(() => ({ start: null, warning: null, expectedOffset: null, drift: null, remainingMs: null, timerPending: false, recent: [] })),
     dispose: vi.fn(),
   } satisfies Cues;
 }
@@ -43,6 +43,7 @@ describe('useTimer', () => {
     expect(hook.result.current.status).toBe('paused');
     expect(hook.result.current.remainingMs).toBe(40_000);
     expect(cues.disarmWarning).toHaveBeenCalledTimes(1);
+    expect(cues.disarmWarning).toHaveBeenLastCalledWith(); // pause keeps the cue's position
 
     clock.t += 5_000;
     act(() => { hook.result.current.toggle(); });
@@ -56,7 +57,7 @@ describe('useTimer', () => {
     act(() => { hook.result.current.start(); });
     act(() => { hook.result.current.reset(30_000); });
     expect(hook.result.current).toMatchObject({ status: 'idle', durationMs: 30_000, remainingMs: 30_000 });
-    expect(cues.disarmWarning).toHaveBeenCalled();
+    expect(cues.disarmWarning).toHaveBeenLastCalledWith(true); // reset rewinds the cue
   });
 
   it('settles to finished from the clock when the page becomes visible again', () => {
@@ -80,6 +81,33 @@ describe('useTimer', () => {
     await vi.waitFor(() => { expect(hook.result.current.remainingMs).toBe(58_500); });
     clock.t += 60_000;
     await vi.waitFor(() => { expect(hook.result.current.status).toBe('finished'); });
+  });
+});
+
+describe('useTimer: warning sync', () => {
+  it('calls ensureWarning on every frame inside the last ten seconds, not before', () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb));
+    const { clock, cues, hook } = setup();
+    const frame = (ms: number) => { clock.t += ms; act(() => { for (const cb of frames.splice(0)) cb(0); }); };
+    act(() => { hook.result.current.start(); });
+    frame(49_000);
+    expect(cues.ensureWarning).not.toHaveBeenCalled();
+    frame(1_000);
+    frame(16);
+    frame(16);
+    expect(cues.ensureWarning).toHaveBeenCalledTimes(3);
+    expect(cues.ensureWarning).toHaveBeenLastCalledWith(61_000);
+  });
+
+  it('syncs the warning once when the page becomes visible while running', () => {
+    const { clock, cues, hook } = setup();
+    act(() => { hook.result.current.start(); });
+    clock.t += 55_000;
+    vi.mocked(cues.ensureWarning).mockClear();
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    expect(cues.ensureWarning).toHaveBeenCalledTimes(1);
+    expect(cues.ensureWarning).toHaveBeenCalledWith(61_000);
   });
 });
 

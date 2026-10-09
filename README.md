@@ -54,13 +54,11 @@ Alternatively connect the GitHub repo to Cloudflare Workers Builds with build co
 - `src/core/timer.ts` is a pure state machine (`idle → running ⇄ paused → finished`) over an
   injected clock. The UI never counts ticks: it asks the core how much time is left at
   `performance.now()`, so background tabs, throttled frames and pauses cannot drift.
-- `src/audio/cues.ts` plays the cues with Web Audio. Both files are decoded at load; the
-  AudioContext is created inside the first Play tap. The warning file is a 10-second countdown,
-  so it is scheduled to start 10 s before the timer's end (or started mid-file when less is
-  left) and stopped on pause or reset. Mute is a gain node. The context is suspended whenever
-  nothing is playing or scheduled.
-- On iOS the cues use the media audio session (`navigator.audioSession`, Safari 16.4+), so the
-  silent switch does not mute them. Below iOS 16.4 the silent switch mutes the cues.
+- `src/audio/cues.ts` plays the cues on plain `<audio>` elements, unlocked on the first Play
+  tap. The warning file is a 10-second countdown that ends exactly at zero: it is driven by the
+  timer clock (a timeout starts it 10 s before the end, or mid-file when less is left) and
+  re-synced every frame while it plays, so a late start or a drift of more than 0.3 s is seeked
+  back. Pause pauses it, reset rewinds it; mute mutes both elements.
 - `src/hooks/useTimer.ts` ties it together: a `requestAnimationFrame` loop while running and
   visible, a resync on `visibilitychange`, and a screen wake lock while running.
 - The service worker updates in the background and never reloads the page; a new version is
@@ -69,8 +67,8 @@ Alternatively connect the GitHub repo to Cloudflare Workers Builds with build co
 ## Troubleshooting
 
 - Audio out of sync or missing on a phone: open the app with `?debug` (or `#debug`) in the URL to
-  show a small overlay with the audio context's state, clock, latencies, the scheduled warning and
-  the last cue warnings.
+  show a small overlay with each audio element's state, the warning's expected position and
+  drift, the timer's remaining time, and the last cue warnings.
 
 ## Layout
 
@@ -86,7 +84,7 @@ src/
   main.tsx              entry: creates the cue engine, renders <App>
   assets/mafia-logo.png
   core/timer.ts         pure timer state machine (+ tests)
-  audio/cues.ts         Web Audio cues, mute persistence (+ tests)
+  audio/cues.ts         <audio> cues, mute persistence (+ tests)
   hooks/useTimer.ts     core + rAF + visibility + cues + wake lock (+ tests)
   hooks/useWakeLock.ts
   ui/App.tsx            the screen (+ tests)

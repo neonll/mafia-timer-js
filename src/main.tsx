@@ -6,7 +6,7 @@ import './ui/styles.css';
 import { createCues, readStoredMute } from './audio/cues';
 import { App } from './ui/App';
 
-// One cue engine for the app's lifetime: starts fetching/decoding immediately.
+// One cue engine for the app's lifetime: creates (and starts preloading) the audio elements now.
 const cues = createCues({ muted: readStoredMute() });
 
 const root = document.getElementById('root');

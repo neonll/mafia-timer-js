@@ -1,0 +1,402 @@
+/* Mafia Timer — "Classic" look, ported 1:1 from the POC's inline styles. */
+
+:root {
+  --accent: #e63946;
+  --bg: #000;
+  --fg: #fff;
+  --mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+
+  /* Accent at a given alpha (the POC's hexToRgba(accent, a)). */
+  --accent-06: color-mix(in srgb, var(--accent) 6%, transparent);
+  --accent-10: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-18: color-mix(in srgb, var(--accent) 18%, transparent);
+  --accent-20: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-28: color-mix(in srgb, var(--accent) 28%, transparent);
+  --accent-35: color-mix(in srgb, var(--accent) 35%, transparent);
+  --accent-50: color-mix(in srgb, var(--accent) 50%, transparent);
+  --accent-55: color-mix(in srgb, var(--accent) 55%, transparent);
+
+  /*
+   * Vertical fit. From ~790px of usable height up this resolves to the POC's
+   * exact sizes (60/90px padding, 200px logo box, 280px ring). Below that the
+   * padding and the logo give way; the ring shrinks only once the logo is at
+   * its minimum (and on viewports narrower than 324px). 190px = controls (64 + 18 + 80) + two 12px section
+   * gaps + the logo's 4px top margin.
+   */
+  --vh: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  --pad-top: clamp(16px, calc((var(--vh) - 667px) * 0.3 + 24px), 60px);
+  --pad-bottom: clamp(24px, calc((var(--vh) - 667px) * 0.45 + 36px), 90px);
+  --fit: calc(var(--vh) - var(--pad-top) - var(--pad-bottom) - 190px);
+  --ring: min(clamp(180px, calc(var(--fit) - 64px), 280px), calc(100vw - 44px));
+  --logo: clamp(64px, calc(var(--fit) - var(--ring)), 200px);
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --vh: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, system-ui, sans-serif;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#root {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+button {
+  font-family: inherit;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Visually hidden, still read by screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- screen ---------------------------------------------------------------- */
+
+.app {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: calc(var(--pad-top) + env(safe-area-inset-top)) calc(22px + env(safe-area-inset-right))
+    calc(var(--pad-bottom) + env(safe-area-inset-bottom)) calc(22px + env(safe-area-inset-left));
+  background: var(--bg);
+  color: var(--fg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ambient red glow; brightens and pulses in the last 10 seconds. */
+.ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 100%, var(--accent-06) 0%, transparent 60%);
+  transition: background 0.4s ease;
+}
+
+.app[data-warning] .ambient {
+  background: radial-gradient(ellipse at 50% 55%, var(--accent-28) 0%, transparent 62%);
+  animation: pulseGlow 1s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---- logo ------------------------------------------------------------------ */
+
+.logo-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  margin-top: 4px;
+}
+
+.logo {
+  display: block;
+  width: var(--logo);
+  height: var(--logo);
+  object-fit: contain;
+  filter: drop-shadow(0 0 20px var(--accent-55)) drop-shadow(0 0 48px var(--accent-28));
+}
+
+/* ---- ring ------------------------------------------------------------------ */
+
+.ring {
+  position: relative;
+  flex: none;
+  width: var(--ring);
+  height: var(--ring);
+}
+
+.ring-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.ring-track {
+  stroke: rgba(255, 255, 255, 0.07);
+}
+
+.ring-progress {
+  stroke: var(--fg);
+  transition: stroke 0.3s;
+}
+
+.app[data-warning] .ring-progress {
+  stroke: var(--accent);
+}
+
+.ring-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--fg);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+.app[data-warning] .ring-dot {
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+
+/* Tick marks at 12/3/6/9: a half-ring-tall arm rotated about the centre. */
+.ring-tick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 50%;
+  transform-origin: bottom center;
+  pointer-events: none;
+}
+
+.ring-tick-mark {
+  width: 1px;
+  height: 6px;
+  margin-top: -3px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ring-digits {
+  font-family: var(--mono);
+  /* 110px / -3px at the full 280px ring. */
+  font-size: calc(var(--ring) * 0.3929);
+  font-weight: 300;
+  line-height: 1;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: calc(var(--ring) * -0.01071);
+  transition: color 0.3s;
+}
+
+.app[data-warning] .ring-digits {
+  color: var(--accent);
+  text-shadow: 0 0 20px var(--accent-50);
+}
+
+.ring-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.ring-label-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.ring-label-dot[data-preset='half'] {
+  background: var(--accent);
+}
+
+/* ---- controls -------------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.presets {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.btn-preset {
+  flex: 1;
+  height: 64px;
+  border-radius: 16px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--fg);
+  cursor: pointer;
+  box-shadow: 0 0 14px var(--accent-10);
+  transition: all 0.2s;
+}
+
+.btn-preset[data-active] {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--accent-50);
+  box-shadow:
+    0 0 24px var(--accent-35),
+    0 4px 16px var(--accent-20);
+}
+
+.btn-preset-label {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-preset[data-active] .btn-preset-label {
+  color: var(--accent);
+}
+
+.btn-preset-bar {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.primary-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background: var(--accent);
+  box-shadow:
+    0 8px 28px var(--accent-50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition:
+    transform 0.12s,
+    background 0.25s,
+    box-shadow 0.25s;
+}
+
+.btn-primary[data-running] {
+  background: var(--fg);
+  box-shadow:
+    0 8px 24px rgba(255, 255, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.btn-primary:active {
+  transform: scale(0.94);
+}
+
+.btn-secondary {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--fg);
+  cursor: pointer;
+  box-shadow: 0 0 18px var(--accent-18);
+  transition: all 0.2s;
+}
+
+.btn-secondary[data-ghost] {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.btn-secondary:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+/* ---- motion ---------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .app[data-warning] .ambient {
+    animation: none;
+  }
+
+  .btn-primary:active {
+    transform: none;
+  }
+}

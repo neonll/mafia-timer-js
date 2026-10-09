@@ -1,0 +1,132 @@
+// @vitest-environment jsdom
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createCues, type Cues } from '../audio/cues';
+import { FakeAudioContext, cuesOptions, flush, type Clock } from '../test/fakeAudio';
+import { noAnimationFrames } from '../test/dom';
+import { App } from './App';
+
+const fakeCues = (): Cues => ({
+  unlock: vi.fn(),
+  playStart: vi.fn(),
+  armWarning: vi.fn(),
+  disarmWarning: vi.fn(),
+  releaseWarning: vi.fn(),
+  setMuted: vi.fn(),
+  dispose: vi.fn(),
+});
+
+beforeEach(() => { noAnimationFrames(vi.stubGlobal); });
+afterEach(() => { localStorage.clear(); });
+
+const digits = () => screen.getByRole('timer').textContent;
+const main = () => screen.getByRole('main');
+const button = (name: string) => screen.getByRole('button', { name });
+/** Recompute the view from the clock (what the rAF loop does every frame). */
+const tick = () => { act(() => { document.dispatchEvent(new Event('visibilitychange')); }); };
+
+describe('App', () => {
+  it('starts, pauses with Space, and resets', () => {
+    const c = fakeCues();
+    render(<App cues={c} />);
+    expect(digits()).toBe('60');
+    expect(button('Reset timer')).toHaveProperty('disabled', true);
+
+    fireEvent.click(button('Start timer'));
+    expect(c.playStart).toHaveBeenCalledOnce();
+    expect(button('Pause timer')).toBeTruthy();
+
+    act(() => { fireEvent.keyDown(document.body, { code: 'Space' }); });
+    expect(button('Start timer')).toBeTruthy();
+
+    fireEvent.click(button('Reset timer'));
+    expect(digits()).toBe('60');
+  });
+
+  it('leaves Space to a focused control', () => {
+    render(<App cues={fakeCues()} />);
+    const mute = button('Mute');
+    mute.focus();
+    act(() => { fireEvent.keyDown(mute, { code: 'Space' }); });
+    expect(button('Start timer')).toBeTruthy();
+  });
+
+  it('switches presets', () => {
+    render(<App cues={fakeCues()} />);
+    fireEvent.click(button('30 seconds'));
+    expect(digits()).toBe('30');
+    expect(button('30 seconds').getAttribute('aria-pressed')).toBe('true');
+    expect(button('60 seconds').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('persists mute and forwards it to the cues', () => {
+    const c = fakeCues();
+    render(<App cues={c} />);
+    fireEvent.click(button('Mute'));
+    expect(c.setMuted).toHaveBeenLastCalledWith(true);
+    expect(localStorage.getItem('mafia-timer:muted')).toBe('1');
+    expect(button('Unmute')).toBeTruthy();
+  });
+
+  it('starts muted from storage: the gain is 0 at unlock', async () => {
+    localStorage.setItem('mafia-timer:muted', '1');
+    const clock: Clock = { t: 0 };
+    const ctx = new FakeAudioContext(clock);
+    const cues = createCues(cuesOptions(ctx, clock));
+    await flush();
+    render(<App cues={cues} now={() => clock.t} />);
+    expect(button('Unmute')).toBeTruthy();
+    fireEvent.click(button('Start timer'));
+    await flush(1);
+    expect(ctx.state).toBe('running');
+    expect(ctx.gainNode.gain.value).toBe(0);
+  });
+
+  it('tolerates a throwing localStorage', () => {
+    const boom = () => { throw new Error('SecurityError'); };
+    vi.stubGlobal('localStorage', { getItem: boom, setItem: boom, clear: () => undefined });
+    render(<App cues={fakeCues()} />);
+    fireEvent.click(button('Mute'));
+    expect(button('Unmute')).toBeTruthy();
+  });
+});
+
+describe('App: last ten seconds', () => {
+  it('warns from exactly 10 000 ms left while running; clears on pause and finish', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    const live = screen.getByText('', { selector: '[aria-live]' });
+
+    fireEvent.click(button('Start timer'));
+    clock.t = 49_999; // 10 001 ms left
+    tick();
+    expect(digits()).toBe('11');
+    expect(main().hasAttribute('data-warning')).toBe(false);
+    expect(live.textContent).toBe('');
+
+    clock.t = 50_000; // 10 000 ms left
+    tick();
+    expect(digits()).toBe('10');
+    expect(main().hasAttribute('data-warning')).toBe(true);
+    expect(live.textContent).toBe('10 seconds left');
+
+    clock.t = 51_000;
+    tick();
+    expect(digits()).toBe('09');
+
+    fireEvent.click(button('Pause timer'));
+    expect(main().hasAttribute('data-warning')).toBe(false);
+    expect(live.textContent).toBe('10 seconds left');
+
+    fireEvent.click(button('Start timer'));
+    expect(main().hasAttribute('data-warning')).toBe(true);
+    clock.t = 60_000;
+    tick();
+    expect(digits()).toBe('00');
+    expect(main().hasAttribute('data-warning')).toBe(false);
+    expect(live.textContent).toBe('Time is up');
+
+    fireEvent.click(button('Reset timer'));
+    expect(live.textContent).toBe('');
+  });
+});

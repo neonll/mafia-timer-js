@@ -107,7 +107,7 @@ button:focus-visible {
   overflow: hidden;
 }
 
-/* Ambient red glow; brightens and pulses in the last 10 seconds. */
+/* Ambient red glow; brightens and pulses in the last 10 seconds, holds (static) once time is up. */
 .ambient {
   position: absolute;
   inset: 0;
@@ -119,6 +119,10 @@ button:focus-visible {
 .app[data-warning] .ambient {
   background: radial-gradient(ellipse at 50% 55%, var(--accent-28) 0%, transparent 62%);
   animation: pulseGlow 1s ease-in-out infinite;
+}
+
+.app[data-finished] .ambient {
+  background: radial-gradient(ellipse at 50% 55%, var(--accent-28) 0%, transparent 62%);
 }
 
 @keyframes pulseGlow {
@@ -176,8 +180,15 @@ button:focus-visible {
   transition: stroke 0.3s;
 }
 
-.app[data-warning] .ring-progress {
+.app[data-warning] .ring-progress,
+.app[data-finished] .ring-progress {
   stroke: var(--accent);
+}
+
+/* Paused: the progress, its end cap and the digits dim, without glow. */
+.app[data-paused] .ring-progress {
+  stroke: rgba(255, 255, 255, 0.42);
+  filter: none;
 }
 
 .ring-dot {
@@ -188,11 +199,19 @@ button:focus-visible {
   transform: translate(-50%, -50%);
   background: var(--fg);
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  transition:
+    background 0.3s,
+    box-shadow 0.3s;
 }
 
 .app[data-warning] .ring-dot {
   background: var(--accent);
   box-shadow: 0 0 12px var(--accent);
+}
+
+.app[data-paused] .ring-dot {
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: none;
 }
 
 /* Tick marks at 12/3/6/9: a half-ring-tall arm rotated about the centre. */
@@ -235,9 +254,14 @@ button:focus-visible {
   transition: color 0.3s;
 }
 
-.app[data-warning] .ring-digits {
+.app[data-warning] .ring-digits,
+.app[data-finished] .ring-digits {
   color: var(--accent);
   text-shadow: 0 0 20px var(--accent-50);
+}
+
+.app[data-paused] .ring-digits {
+  color: rgba(255, 255, 255, 0.42);
 }
 
 .ring-label {
@@ -249,6 +273,19 @@ button:focus-visible {
   letter-spacing: 4px;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.45);
+}
+
+.ring-label[data-status='paused'] {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ring-label[data-status='finished'] {
+  color: var(--accent);
+}
+
+.ring-label-glyph {
+  display: block;
+  flex: none;
 }
 
 .ring-label-dot {

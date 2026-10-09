@@ -50,12 +50,17 @@ export function App({ cues, now }: AppProps) {
     t.status === 'finished' ? 'Time is up' : inLastTen && t.status !== 'idle' ? '10 seconds left' : '';
 
   return (
-    <main className="app" data-warning={warning || undefined}>
+    <main
+      className="app"
+      data-warning={warning || undefined}
+      data-paused={t.status === 'paused' || undefined}
+      data-finished={t.status === 'finished' || undefined}
+    >
       <div className="ambient" aria-hidden="true" />
       <div className="logo-wrap">
         <img className="logo" src={logoUrl} alt="Mafia" />
       </div>
-      <Ring remainingMs={t.remainingMs} durationMs={t.durationMs} />
+      <Ring status={t.status} remainingMs={t.remainingMs} durationMs={t.durationMs} />
       <Controls
         durationMs={t.durationMs}
         atStart={t.remainingMs === t.durationMs && !t.running}

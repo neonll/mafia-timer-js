@@ -130,3 +130,58 @@ describe('App: last ten seconds', () => {
     expect(live.textContent).toBe('');
   });
 });
+
+describe('App: ring states', () => {
+  const label = () => document.querySelector('.ring-label')?.textContent;
+  const progressOffset = () => Number(document.querySelector('.ring-progress')?.getAttribute('stroke-dashoffset'));
+
+  it('labels idle and running with the preset, paused with PAUSED', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    expect(label()).toBe('60s');
+    fireEvent.click(button('Start timer'));
+    expect(label()).toBe('60s');
+
+    clock.t = 5_000;
+    fireEvent.click(button('Pause timer'));
+    expect(label()).toMatch(/^paused$/i);
+    expect(main().hasAttribute('data-paused')).toBe(true);
+    expect(document.querySelector('.ring-label-dot')).toBeNull();
+
+    fireEvent.click(button('Start timer'));
+    expect(label()).toBe('60s');
+    expect(main().hasAttribute('data-paused')).toBe(false);
+  });
+
+  it('holds a full red ring labelled TIME\'S UP once finished; reset clears it', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('30 seconds'));
+    fireEvent.click(button('Start timer'));
+    clock.t = 30_000;
+    tick();
+
+    expect(digits()).toBe('00');
+    expect(main().hasAttribute('data-finished')).toBe(true);
+    expect(main().hasAttribute('data-warning')).toBe(false);
+    expect(label()).toMatch(/^time's up$/i);
+    expect(document.querySelector('.ring-label-dot')).toBeNull();
+    expect(progressOffset()).toBe(0);
+
+    fireEvent.click(button('Reset timer'));
+    expect(main().hasAttribute('data-finished')).toBe(false);
+    expect(label()).toBe('30s');
+  });
+
+  it('clears the finished hold on a new start', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 60_000;
+    tick();
+    expect(main().hasAttribute('data-finished')).toBe(true);
+    fireEvent.click(button('Start timer'));
+    expect(main().hasAttribute('data-finished')).toBe(false);
+    expect(label()).toBe('60s');
+  });
+});

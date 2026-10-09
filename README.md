@@ -8,9 +8,16 @@ while the timer runs.
 ## Use
 
 - **60s / 30s** — pick the preset (resets the timer).
-- **Play / Pause** — start, pause, resume. `Space` does the same on a keyboard.
+- **Play / Pause** — start, pause, resume. Tapping the ring does the same, and so does `Space`
+  on a keyboard.
 - **Square** — reset to the current preset.
 - **Speaker** — mute or unmute the cues (remembered on this device).
+
+While paused the ring dims and reads PAUSED; when time is up it stays full and red and reads
+TIME'S UP until you reset or start again (with the buttons: tapping the ring does nothing then, so
+an accidental tap can't restart the timer). On Android the phone also vibrates briefly when the
+last ten seconds start and twice when time is up (regardless of mute; iPhones have no
+vibration API for web pages).
 
 ## Develop
 

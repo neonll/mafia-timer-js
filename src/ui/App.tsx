@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { readStoredMute, storeMute, type Cues } from '../audio/cues';
 import { WARNING_MS } from '../core/timer';
+import { useHaptics } from '../hooks/useHaptics';
 import { useTimer } from '../hooks/useTimer';
 import logoUrl from '../assets/mafia-logo.png';
 import { Controls } from './Controls';
@@ -44,18 +45,24 @@ export function App({ cues, now }: AppProps) {
 
   const inLastTen = t.remainingMs <= WARNING_MS;
   const warning = inLastTen && t.running;
+  useHaptics(t.status, t.remainingMs, warning);
   // Announced once each: the text only changes when a run enters the last ten
   // seconds and when it finishes (a reset clears it for the next run).
   const announcement =
     t.status === 'finished' ? 'Time is up' : inLastTen && t.status !== 'idle' ? '10 seconds left' : '';
 
   return (
-    <main className="app" data-warning={warning || undefined}>
+    <main
+      className="app"
+      data-warning={warning || undefined}
+      data-paused={t.status === 'paused' || undefined}
+      data-finished={t.status === 'finished' || undefined}
+    >
       <div className="ambient" aria-hidden="true" />
       <div className="logo-wrap">
         <img className="logo" src={logoUrl} alt="Mafia" />
       </div>
-      <Ring remainingMs={t.remainingMs} durationMs={t.durationMs} />
+      <Ring status={t.status} remainingMs={t.remainingMs} durationMs={t.durationMs} onToggle={toggle} />
       <Controls
         durationMs={t.durationMs}
         atStart={t.remainingMs === t.durationMs && !t.running}

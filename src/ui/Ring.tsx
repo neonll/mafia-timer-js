@@ -1,4 +1,4 @@
-import { PRESET_FULL_MS } from '../core/timer';
+import { PRESET_FULL_MS, type TimerStatus } from '../core/timer';
 
 /** Geometry in SVG user units; the ring scales with its box (`--ring`). */
 const SIZE = 280;
@@ -8,13 +8,23 @@ const C = 2 * Math.PI * R;
 const TICKS = [0, 90, 180, 270] as const;
 
 interface RingProps {
+  status: TimerStatus;
   remainingMs: number;
   durationMs: number;
+  /** Same start/pause toggle as the primary button (pointer-only shortcut). */
+  onToggle: () => void;
 }
 
-export function Ring({ remainingMs, durationMs }: RingProps) {
+/**
+ * Tapping the ring starts/pauses: a transparent hit area over it, hidden from
+ * assistive tech and out of the tab order (the primary button is the
+ * accessible control; Space covers keyboards). Inert once time is up, so a tap
+ * on TIME'S UP never restarts by accident.
+ */
+export function Ring({ status, remainingMs, durationMs, onToggle }: RingProps) {
   const display = Math.ceil(remainingMs / 1000);
-  const pct = Math.max(0, Math.min(1, remainingMs / durationMs));
+  // Finished holds a full red ring rather than an empty one.
+  const pct = status === 'finished' ? 1 : Math.max(0, Math.min(1, remainingMs / durationMs));
 
   // End-cap dot, as a percentage of the ring box.
   const angle = -Math.PI / 2 + pct * Math.PI * 2;
@@ -62,11 +72,39 @@ export function Ring({ remainingMs, durationMs }: RingProps) {
         <div className="ring-digits" role="timer" aria-live="off" aria-label={`${String(display)} seconds left`}>
           {String(display).padStart(2, '0')}
         </div>
-        <div className="ring-label">
-          <span className="ring-label-dot" data-preset={durationMs === PRESET_FULL_MS ? 'full' : 'half'} />
-          {durationMs / 1000}s
-        </div>
+        <RingLabel status={status} durationMs={durationMs} />
       </div>
+
+      <button
+        type="button"
+        className="ring-hit"
+        tabIndex={-1}
+        aria-hidden="true"
+        disabled={status === 'finished'}
+        onClick={onToggle}
+      />
+    </div>
+  );
+}
+
+/** idle/running: the preset; paused: PAUSED; finished: TIME'S UP (uppercased by CSS). */
+function RingLabel({ status, durationMs }: { status: TimerStatus; durationMs: number }) {
+  if (status === 'finished') return <div className="ring-label" data-status="finished">{"Time's up"}</div>;
+  if (status === 'paused') {
+    return (
+      <div className="ring-label" data-status="paused">
+        <svg className="ring-label-glyph" width="9" height="10" viewBox="0 0 9 10" aria-hidden="true">
+          <rect x="0" y="0" width="3" height="10" fill="currentColor" />
+          <rect x="6" y="0" width="3" height="10" fill="currentColor" />
+        </svg>
+        Paused
+      </div>
+    );
+  }
+  return (
+    <div className="ring-label">
+      <span className="ring-label-dot" data-preset={durationMs === PRESET_FULL_MS ? 'full' : 'half'} />
+      {durationMs / 1000}s
     </div>
   );
 }

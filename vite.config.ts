@@ -8,7 +8,7 @@ export default defineConfig({
     VitePWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      injectRegister: false, // registered in src/main.tsx
       manifest: {
         name: 'Mafia Timer',
         short_name: 'Mafia',
@@ -35,5 +35,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/test/setup.ts'],
+    restoreMocks: true,
+    unstubGlobals: true,
   },
 });

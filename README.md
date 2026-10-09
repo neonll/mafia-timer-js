@@ -50,9 +50,14 @@ Alternatively connect the GitHub repo to Cloudflare Workers Builds with build co
 - `src/audio/cues.ts` plays the cues with Web Audio. Both files are decoded at load; the
   AudioContext is created inside the first Play tap. The warning file is a 10-second countdown,
   so it is scheduled to start 10 s before the timer's end (or started mid-file when less is
-  left) and stopped on pause or reset. Mute is a gain node.
+  left) and stopped on pause or reset. Mute is a gain node. The context is suspended whenever
+  nothing is playing or scheduled.
+- On iOS the cues use the media audio session (`navigator.audioSession`, Safari 16.4+), so the
+  silent switch does not mute them. Below iOS 16.4 the silent switch mutes the cues.
 - `src/hooks/useTimer.ts` ties it together: a `requestAnimationFrame` loop while running and
   visible, a resync on `visibilitychange`, and a screen wake lock while running.
+- The service worker updates in the background and never reloads the page; a new version is
+  picked up on the next launch.
 
 ## Layout
 

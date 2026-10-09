@@ -1,76 +1,85 @@
 # Mafia Timer
 
-A single-page speech timer for the Mafia party game. Two presets — **60-second speech** and **30-second last word** — with an audible 10-second warning and a pulsing red ring as time runs out.
-
-Runs entirely in the browser, installable as a PWA.
+A single-screen speech timer for the Mafia party game. Two presets — **60 s** speech and
+**30 s** last word — with a start cue, a 10-second audio countdown that ends exactly at zero,
+and a pulsing red ring as time runs out. Installable as an offline PWA; the screen stays awake
+while the timer runs.
 
 ## Use
 
-Open `index.html` (or a deployed URL) on a phone or tablet:
-
-- **Speech / Last Word** — pick the preset.
-- **Play** — start / pause.
+- **60s / 30s** — pick the preset (resets the timer).
+- **Play / Pause** — start, pause, resume. `Space` does the same on a keyboard.
 - **Square** — reset to the current preset.
-- **Speaker** — mute or unmute the start and warning cues.
+- **Speaker** — mute or unmute the cues (remembered on this device).
+
+## Develop
+
+Requires Node 22+.
+
+```bash
+npm i
+npm run dev          # Vite dev server
+npm test             # Vitest: timer core, cue scheduling, hook and UI tests
+npm run lint         # ESLint (typescript-eslint strict, react-hooks)
+npm run typecheck    # tsc, strict
+npm run build        # type-check + production build into dist/ (with the service worker)
+npm run preview      # serve dist/ locally
+```
+
+`npm run icons` regenerates the PWA icons in `public/icons/` from `src/assets/mafia-logo.png`
+(run it after changing the logo and commit the output).
+
+## Deploy (Cloudflare Workers, static assets)
+
+`wrangler.jsonc` serves `dist/` as static assets with single-page-application fallback; there
+is no Worker script.
+
+```bash
+npx wrangler login   # once per machine
+npm run deploy       # vite build && wrangler deploy
+```
+
+Alternatively connect the GitHub repo to Cloudflare Workers Builds with build command
+`npm run build` and deploy command `npx wrangler deploy`.
+
+## How it works
+
+- `src/core/timer.ts` is a pure state machine (`idle → running ⇄ paused → finished`) over an
+  injected clock. The UI never counts ticks: it asks the core how much time is left at
+  `performance.now()`, so background tabs, throttled frames and pauses cannot drift.
+- `src/audio/cues.ts` plays the cues with Web Audio. Both files are decoded at load; the
+  AudioContext is created inside the first Play tap. The warning file is a 10-second countdown,
+  so it is scheduled to start 10 s before the timer's end (or started mid-file when less is
+  left) and stopped on pause or reset. Mute is a gain node.
+- `src/hooks/useTimer.ts` ties it together: a `requestAnimationFrame` loop while running and
+  visible, a resync on `visibilitychange`, and a screen wake lock while running.
 
 ## Layout
 
 ```
-index.html        self-unpacking bundle (see "Bundle" below)
-manifest.json     PWA manifest
-assets/
-  mafia-logo.png  rendered above the ring
-  sound_start.mp3 played on Start
-  sound_10sec.mp3 played when 10 seconds remain
+index.html              Vite entry (meta tags, icons)
+public/
+  sounds/start.mp3      start cue
+  sounds/warning-10s.mp3  10-second countdown cue
+  icons/                PWA + apple-touch icons (generated, committed)
   favicon.ico
-robots.txt
+  robots.txt
 src/
-  app.jsx         unbundled React/JSX source for the app
-  template.html   unbundled HTML shell injected after the unpack
-scripts/
-  bundle.py       extract / inject src/ into index.html
+  main.tsx              entry: creates the cue engine, renders <App>
+  assets/mafia-logo.png
+  core/timer.ts         pure timer state machine (+ tests)
+  audio/cues.ts         Web Audio cues, mute persistence (+ tests)
+  hooks/useTimer.ts     core + rAF + visibility + cues + wake lock (+ tests)
+  hooks/useWakeLock.ts
+  ui/App.tsx            the screen (+ tests)
+  ui/Ring.tsx           progress ring and digits
+  ui/Controls.tsx       presets, play/pause, reset, mute
+  ui/icons.tsx
+  ui/styles.css
+scripts/icons.mjs       icon generator (sharp)
+vite.config.ts          Vite, Vitest and PWA (manifest, precache) config
+wrangler.jsonc          Cloudflare Workers static-assets config
 ```
-
-## Bundle
-
-`index.html` is a single self-contained file. Its outer shell decodes a
-base64+gzipped manifest on load and replaces `document.documentElement` with
-the packed template. The manifest holds:
-
-- **React 18 + ReactDOM + Babel Standalone** (exposed to the template as blob URLs).
-- **The app JSX** (inline, transformed by Babel at load time).
-- **Font faces** (Fraunces, JetBrains Mono).
-
-Files under `assets/` and `manifest.json` are **not** packed into the blob;
-they must be served alongside `index.html` so the runtime `<img src="assets/…">`
-and `new Audio('assets/…')` calls resolve.
-
-### Editing the app
-
-The unbundled sources are tracked in `src/`, so edits show up clean in
-diffs — `index.html` itself is a derived artifact. Workflow:
-
-```bash
-# edit src/app.jsx and/or src/template.html
-python3 scripts/bundle.py inject  index.html
-python3 scripts/bundle.py verify  index.html
-# commit src/ + index.html together
-```
-
-`extract` is the reverse: `python3 scripts/bundle.py extract index.html`
-overwrites `src/` with whatever is currently packed into `index.html`.
-Use it to bootstrap a fresh checkout or to recover if `src/` and
-`index.html` drift out of sync.
-
-`verify` round-trips extract → inject → extract and asserts the decoded
-sources are byte-identical (gzip output itself is not bit-stable, but the
-decoded contents must match).
-
-## Deploy
-
-Serve the repo root. All paths are relative, so any static host (GitHub
-Pages, Netlify, an S3 bucket, `python3 -m http.server`) works with no build
-step. Serving over HTTPS is required for PWA install.
 
 ## License
 

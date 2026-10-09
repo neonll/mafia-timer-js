@@ -26,25 +26,25 @@ type CueName = keyof typeof CUE_URLS;
 
 export interface Cues {
   /** Create/resume the AudioContext. Call synchronously inside a user gesture. */
-  unlock(): void;
+  unlock: () => void;
   /** One-shot start cue. */
-  playStart(): void;
+  playStart: () => void;
   /**
    * Schedule the 10-second warning so that it ends at `endAt` (a value on the
    * same clock as `now`, i.e. the running timer's end). Replaces any earlier
    * schedule. If less than 10 s is left, the cue starts immediately at the
    * matching offset so it stays in sync with the clock.
    */
-  armWarning(endAt: number): void;
+  armWarning: (endAt: number) => void;
   /** Cancel the warning (pause / reset). Stops it if already playing. */
-  disarmWarning(): void;
+  disarmWarning: () => void;
   /**
    * Forget the warning without stopping it (the timer finished: the cue ends on
    * its own at the same moment, so stopping it would only clip its tail).
    */
-  releaseWarning(): void;
-  setMuted(muted: boolean): void;
-  dispose(): void;
+  releaseWarning: () => void;
+  setMuted: (muted: boolean) => void;
+  dispose: () => void;
 }
 
 export interface CuesOptions {
@@ -74,6 +74,21 @@ function defaultOfflineContext(): (() => BaseAudioContext) | null {
   const w = globalThis as WindowWithWebkitAudio;
   const Ctor = globalThis.OfflineAudioContext as typeof OfflineAudioContext | undefined ?? w.webkitOfflineAudioContext;
   return Ctor ? () => new Ctor(1, 1, 44_100) : null;
+}
+
+/**
+ * iOS routes Web Audio through the "ambient" session by default, which the
+ * hardware silent switch mutes (unlike the <audio> elements the POC used).
+ * Safari 16.4+ lets a page opt into the "playback" session instead, so the
+ * cues are heard like any media. Elsewhere this is a no-op.
+ */
+function preferMediaAudioSession(): void {
+  const nav = globalThis.navigator as (Navigator & { audioSession?: { type: string } }) | undefined;
+  try {
+    if (nav?.audioSession) nav.audioSession.type = 'playback';
+  } catch {
+    // not supported
+  }
 }
 
 /** decodeAudioData with a callback fallback for old Safari, which has no promise form. */
@@ -124,8 +139,15 @@ export function createCues(opts: CuesOptions = {}): Cues {
     const data = await res.arrayBuffer();
     if (disposed) return;
     if (makeOffline) {
-      setBuffer(name, await decode(makeOffline(), data));
-    } else if (ctx) {
+      try {
+        // decodeAudioData detaches its input, so hand it a copy and keep `data` for the fallback.
+        setBuffer(name, await decode(makeOffline(), data.slice(0)));
+        return;
+      } catch {
+        // fall back to decoding on the live context
+      }
+    }
+    if (ctx) {
       setBuffer(name, await decode(ctx, data));
     } else {
       raw.set(name, data); // decoded in unlock()
@@ -149,6 +171,7 @@ export function createCues(opts: CuesOptions = {}): Cues {
   function unlock() {
     if (disposed) return;
     if (!ctx) {
+      preferMediaAudioSession();
       try {
         ctx = makeContext();
         gain = ctx.createGain();

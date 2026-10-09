@@ -12,11 +12,11 @@ export interface TimerView {
 
 export interface TimerControls extends TimerView {
   running: boolean;
-  start(): void;
-  pause(): void;
-  toggle(): void;
+  start: () => void;
+  pause: () => void;
+  toggle: () => void;
   /** Back to idle at full. Pass a duration to switch presets. */
-  reset(durationMs?: number): void;
+  reset: (durationMs?: number) => void;
 }
 
 export interface UseTimerOptions {

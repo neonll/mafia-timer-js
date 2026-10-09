@@ -48,41 +48,37 @@ describe('elements', () => {
 });
 
 describe('unlock', () => {
-  it('primes both elements once with a muted play that is undone when it settles', async () => {
+  it('primes only the warning, once, with a muted play that is undone when it settles', async () => {
     const { cues, start, warning } = setup();
     cues.unlock();
-    for (const el of [start, warning]) {
-      expect(el.plays).toEqual([{ at: 0, muted: true }]);
-      expect(el.muted).toBe(true);
-    }
+    expect(start.plays).toEqual([]);
+    expect(warning.plays).toEqual([{ at: 0, muted: true }]);
+    expect(warning.muted).toBe(true);
     await microtasks();
-    for (const el of [start, warning]) {
-      expect(el.paused).toBe(true);
-      expect(el.currentTime).toBe(0);
-      expect(el.muted).toBe(false);
-    }
+    expect(warning.paused).toBe(true);
+    expect(warning.currentTime).toBe(0);
+    expect(warning.muted).toBe(false);
     cues.unlock();
     await microtasks();
-    expect(start.plays).toHaveLength(1);
     expect(warning.plays).toHaveLength(1);
+    expect(start.plays).toEqual([]);
   });
 
   it('restores the mute setting current when priming settles', async () => {
-    const { cues, start, warning } = setup();
+    const { cues, warning } = setup();
     cues.unlock();
     cues.setMuted(true);
     await microtasks();
-    expect(start.muted).toBe(true);
     expect(warning.muted).toBe(true);
   });
 
-  it('a start cue requested in the same tap is not paused by the priming restore', async () => {
+  it('the start cue in the same tap plays straight away, unmuted', async () => {
     const { cues, start } = setup();
     cues.unlock();
     cues.playStart();
     await microtasks();
     expect(start.audible).toBe(true);
-    expect(start.audiblePlays).toEqual([0]);
+    expect(start.plays).toEqual([{ at: 0, muted: false }]);
   });
 
   it('reloads an element that errored or never loaded, on every unlock', async () => {
@@ -109,14 +105,14 @@ describe('start cue', () => {
     expect(start.audiblePlays).toEqual([0]);
     cues.setMuted(true);
     cues.playStart();
-    expect(start.plays).toHaveLength(2); // priming + the one unmuted play
+    expect(start.plays).toHaveLength(1);
   });
 
   it('a muted startup skips it', async () => {
     const { cues, start } = setup({ muted: true });
     await tap(cues);
     cues.playStart();
-    expect(start.plays).toHaveLength(1); // priming only
+    expect(start.plays).toEqual([]);
     expect(start.muted).toBe(true);
   });
 });

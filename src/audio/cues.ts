@@ -3,8 +3,9 @@
  * in sync on a real iPhone where Web Audio did not).
  *
  * - Two media elements are created once, at app load. `unlock()`, called
- *   synchronously inside the Play tap, primes both with a muted play() + pause()
- *   so iOS lets them play later from timers. Media elements play through the
+ *   synchronously inside the Play tap, primes the warning with a muted play() +
+ *   pause() so iOS lets it play later from a timer; the start cue plays inside
+ *   the tap itself, which is its own unlock. Media elements play through the
  *   iOS silent switch, so no audio-session handling is needed.
  * - The warning file is a 10-second countdown that must end exactly at zero.
  *   It is driven by the timer's clock only: a setTimeout starts it 10 s before
@@ -119,8 +120,6 @@ interface Cue {
   el: CueElement;
   /** The priming play() has not settled yet. */
   priming: boolean;
-  /** A real play was requested while priming: the priming restore must not pause it. */
-  claimed: boolean;
   /** A real play() promise has not settled yet. */
   playPending: boolean;
   /** `now()` of the last real play(). */
@@ -177,7 +176,7 @@ export function createCues(opts: CuesOptions = {}): Cues {
     } catch {
       // a partial element: keep going
     }
-    return { name, el, priming: false, claimed: false, playPending: false, playAt: -Infinity, refusedAt: null, gen: 0 };
+    return { name, el, priming: false, playPending: false, playAt: -Infinity, refusedAt: null, gen: 0 };
   }
 
   const start = makeCue('start');
@@ -195,7 +194,6 @@ export function createCues(opts: CuesOptions = {}): Cues {
   }
 
   function pause(cue: Cue) {
-    cue.claimed = false;
     // A pending play() is aborted by this pause; its outcome no longer matters.
     cue.gen++;
     cue.playPending = false;
@@ -209,7 +207,6 @@ export function createCues(opts: CuesOptions = {}): Cues {
 
   /** A real, audible-unless-muted play. */
   function play(cue: Cue) {
-    if (cue.priming) cue.claimed = true;
     cue.el.muted = muted;
     cue.playPending = true;
     cue.playAt = now();
@@ -242,23 +239,24 @@ export function createCues(opts: CuesOptions = {}): Cues {
     );
   }
 
-  /** The POC's unlock: a muted play() that is undone as soon as it settles. */
+  /**
+   * The POC's unlock: a muted play() that is undone as soon as it settles. Only
+   * the warning needs it (it later plays from a timer); the start cue plays
+   * inside the tap, which unlocks it. The first tap is always a fresh start, so
+   * the warning cannot be asked to play while this is pending.
+   */
   function prime(cue: Cue) {
     const { el } = cue;
     cue.priming = true;
-    cue.claimed = false;
     const restore = () => {
       cue.priming = false;
       try {
-        if (!cue.claimed) {
-          el.pause();
-          el.currentTime = 0;
-        }
+        el.pause();
+        el.currentTime = 0;
         el.muted = muted;
       } catch {
         // best effort
       }
-      cue.claimed = false;
     };
     try {
       el.muted = true;
@@ -285,9 +283,9 @@ export function createCues(opts: CuesOptions = {}): Cues {
         }
       }
     }
-    if (primed) return;
+    if (primed || !warning) return;
     primed = true;
-    for (const cue of cues) prime(cue);
+    prime(warning);
   }
 
   function playStart() {
@@ -412,7 +410,7 @@ export function createCues(opts: CuesOptions = {}): Cues {
       muted = m;
       for (const cue of cues) {
         // A priming element stays muted; its restore applies the current setting.
-        if (cue.priming && !cue.claimed) continue;
+        if (cue.priming) continue;
         cue.el.muted = m;
       }
     },

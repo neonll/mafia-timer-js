@@ -80,6 +80,43 @@ describe('timer ↔ warning cue sync', () => {
     expect(ctx.warnings.slice(0, -1).every((s) => s.stopped)).toBe(true);
   });
 
+  it('pause 20 s with the context suspended, resume: scheduled on the post-resume clock', async () => {
+    const { ctx, press } = await setup();
+    await press('start');
+    ctx.starts[0]?.end();
+    ctx.advance(15_000);
+    await press('pause'); // 45 s left
+    expect(ctx.state).toBe('suspended');
+    ctx.advance(20_000); // frozen audio clock
+    await press('start');
+    expect(ctx.state).toBe('running');
+    expect(ctx.liveWarnings).toHaveLength(1);
+    close(ctx.lastWarning?.started?.when, ctx.currentTime + 35);
+  });
+
+  it('crossing the 10 s mark with a cue 0.5 s off restarts it at the right offset', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb));
+    const tick = () => { act(() => { for (const cb of frames.splice(0)) cb(0); }); };
+    const { ctx, press } = await setup();
+    await press('start');
+    ctx.starts[0]?.end();
+    tick(); // 60 s left: nothing to check
+    expect(ctx.warnings).toHaveLength(1);
+    ctx.advance(50_200);
+    ctx.skew(0.5); // the audio clock jumped: the scheduled cue is 0.5 s early
+    tick(); // first frame inside the last 10 s
+    const [first, second] = ctx.warnings;
+    expect(first?.stopped).toBe(true);
+    close(second?.started?.when, ctx.currentTime);
+    close(second?.started?.offset, 0.2);
+    ctx.advance(1_000);
+    tick(); // checked once per run segment
+    expect(ctx.warnings).toHaveLength(2);
+    expect(ctx.liveWarnings).toHaveLength(1);
+  });
+
   it('a preset switch while running leaves no live warning', async () => {
     const { ctx, result } = await setup();
     act(() => { result.current.start(); });

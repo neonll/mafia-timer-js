@@ -10,9 +10,11 @@ const fakeCues = (): Cues => ({
   unlock: vi.fn(),
   playStart: vi.fn(),
   armWarning: vi.fn(),
+  ensureWarning: vi.fn(),
   disarmWarning: vi.fn(),
   releaseWarning: vi.fn(),
   setMuted: vi.fn(),
+  debugInfo: vi.fn(() => ({ state: 'none' as const, currentTime: null, baseLatency: null, outputLatency: null, fileStart: null, warningPlaying: false, recent: [] })),
   dispose: vi.fn(),
 });
 

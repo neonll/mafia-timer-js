@@ -66,6 +66,12 @@ Alternatively connect the GitHub repo to Cloudflare Workers Builds with build co
 - The service worker updates in the background and never reloads the page; a new version is
   picked up on the next launch.
 
+## Troubleshooting
+
+- Audio out of sync or missing on a phone: open the app with `?debug` (or `#debug`) in the URL to
+  show a small overlay with the audio context's state, clock, latencies, the scheduled warning and
+  the last cue warnings.
+
 ## Layout
 
 ```
@@ -86,6 +92,7 @@ src/
   ui/App.tsx            the screen (+ tests)
   ui/Ring.tsx           progress ring and digits
   ui/Controls.tsx       presets, play/pause, reset, mute
+  ui/DebugOverlay.tsx   ?debug audio diagnostics (lazy-loaded)
   ui/icons.tsx
   ui/styles.css
 scripts/icons.mjs       icon generator (sharp)

@@ -49,7 +49,11 @@ export class FakeSource {
 }
 
 export interface FakeContextOptions {
-  /** Provide getOutputTimestamp() (default true). */
+  /**
+   * Provide a getOutputTimestamp() that behaves like WebKit's: frozen at the
+   * last suspend (zeros before the first run). Default true. The cue engine
+   * must not depend on it.
+   */
   timestamp?: boolean;
   outputLatency?: number;
   /** Number of resume() calls to reject before succeeding. */
@@ -71,8 +75,8 @@ export class FakeAudioContext {
   };
   resumeCalls = 0;
   suspendCalls = 0;
-  /** Set once the context has run at least once (browsers report a zero timestamp before). */
-  private hasRun = false;
+  /** The stale output timestamp: the last rendered quantum before the last suspend. */
+  private staleStamp: AudioTimestamp = { contextTime: 0, performanceTime: 0 };
   private readonly listeners: Listener[] = [];
   private refuse: number;
   getOutputTimestamp?: () => AudioTimestamp;
@@ -84,8 +88,7 @@ export class FakeAudioContext {
     this.outputLatency = opts.outputLatency;
     this.refuse = opts.refuseResume ?? 0;
     if (opts.timestamp ?? true) {
-      this.getOutputTimestamp = () =>
-        this.hasRun ? { contextTime: this.currentTime, performanceTime: this.clock.t } : { contextTime: 0, performanceTime: 0 };
+      this.getOutputTimestamp = () => ({ ...this.staleStamp });
     }
   }
 
@@ -119,6 +122,8 @@ export class FakeAudioContext {
   }
   /** Make the next `n` resume() calls reject (as iOS does outside a gesture). */
   refuseNext(n: number) { this.refuse = n; }
+  /** Jump the audio clock by `s` seconds without moving the timer clock (a clock-mapping glitch). */
+  skew(s: number) { this.currentTime += s; }
   /** The OS takes the audio away (iOS: lock screen, app switch, call). */
   interrupt() { this.setState('suspended'); }
   /** Let `ms` pass on the timer clock; the audio clock follows only while running. */
@@ -135,7 +140,7 @@ export class FakeAudioContext {
   private setState(s: AudioContextState) {
     if (this.state === s) return;
     this.state = s;
-    if (s === 'running') this.hasRun = true;
+    if (s !== 'running') this.staleStamp = { contextTime: this.currentTime, performanceTime: this.clock.t };
     for (const cb of this.listeners) cb();
   }
 }

@@ -37,6 +37,7 @@ export default function DebugOverlay({ cues, remainingMs }: DebugOverlayProps) {
         element('start', info.start),
         element('warn ', info.warning),
         `warn expected=${num(info.expectedOffset, 2)} drift=${num(info.drift, 2)}`,
+        `seeks ${String(info.seeks)} last drift=${num(info.lastSeekDrift, 2)}`,
         `armed left=${info.remainingMs === null ? '—' : String(Math.round(info.remainingMs))} ms timeout=${info.timerPending ? 'pending' : 'none'}`,
         `remaining ${String(Math.round(remainingMs))} ms`,
         ...info.recent.map((m) => `! ${m}`),

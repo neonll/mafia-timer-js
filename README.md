@@ -57,8 +57,9 @@ Alternatively connect the GitHub repo to Cloudflare Workers Builds with build co
 - `src/audio/cues.ts` plays the cues on plain `<audio>` elements, unlocked on the first Play
   tap. The warning file is a 10-second countdown that ends exactly at zero: it is driven by the
   timer clock (a timeout starts it 10 s before the end, or mid-file when less is left) and
-  re-synced every frame while it plays, so a late start or a drift of more than 0.3 s is seeked
-  back. Pause pauses it, reset rewinds it; mute mutes both elements.
+  checked every frame while it plays. Only a real stall (more than 1 s off, e.g. after the page
+  was hidden) is seeked back, at most once every 3 s, because each seek is an audible skip; the
+  small, constant play-start latency is left alone. Pause pauses it, reset rewinds it; mute mutes both elements.
 - `src/hooks/useTimer.ts` ties it together: a `requestAnimationFrame` loop while running and
   visible, a resync on `visibilitychange`, and a screen wake lock while running.
 - The service worker updates in the background and never reloads the page; a new version is
@@ -68,7 +69,8 @@ Alternatively connect the GitHub repo to Cloudflare Workers Builds with build co
 
 - Audio out of sync or missing on a phone: open the app with `?debug` (or `#debug`) in the URL to
   show a small overlay with each audio element's state, the warning's expected position and
-  drift, the timer's remaining time, and the last cue warnings.
+  drift, how many corrective seeks happened this run, the timer's remaining time, and the last
+  cue warnings.
 
 ## Layout
 

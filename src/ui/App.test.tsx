@@ -21,7 +21,9 @@ afterEach(() => { localStorage.clear(); });
 
 const digits = () => screen.getByRole('timer').textContent;
 const main = () => screen.getByRole('main');
-const button = (name: string) => screen.getByRole('button', { name });
+/** The ring button shares the Start/Pause names with the primary button, which comes last. */
+const button = (name: string) => screen.getAllByRole('button', { name }).at(-1) as HTMLElement;
+const ring = () => document.querySelector('button.ring') as HTMLButtonElement;
 /** Recompute the view from the clock (what the rAF loop does every frame). */
 const tick = () => { act(() => { document.dispatchEvent(new Event('visibilitychange')); }); };
 
@@ -183,5 +185,28 @@ describe('App: ring states', () => {
     fireEvent.click(button('Start timer'));
     expect(main().hasAttribute('data-finished')).toBe(false);
     expect(label()).toBe('60s');
+  });
+});
+
+describe('App: tap the ring', () => {
+  it('starts and pauses like the primary button, mirroring its label', () => {
+    const clock = { t: 0 };
+    const c = fakeCues();
+    render(<App cues={c} now={() => clock.t} />);
+    expect(ring().type).toBe('button');
+    expect(ring().getAttribute('aria-label')).toBe('Start timer');
+    expect(ring().querySelector('[role="timer"]')).not.toBeNull();
+
+    fireEvent.click(ring());
+    expect(c.unlock).toHaveBeenCalledOnce(); // synchronously inside the gesture
+    expect(c.playStart).toHaveBeenCalledOnce();
+    expect(ring().getAttribute('aria-label')).toBe('Pause timer');
+    expect(button('Pause timer').className).toBe('btn-primary');
+
+    clock.t = 3_000;
+    fireEvent.click(ring());
+    expect(ring().getAttribute('aria-label')).toBe('Start timer');
+    expect(digits()).toBe('57');
+    expect(main().hasAttribute('data-paused')).toBe(true);
   });
 });

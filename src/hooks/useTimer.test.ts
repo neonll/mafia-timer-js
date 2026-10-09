@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Cues } from '../audio/cues';
+import { restoreVisibility, setVisibility } from '../test/dom';
 import { useTimer } from './useTimer';
+
+afterEach(() => { restoreVisibility(); });
 
 function fakeCues() {
   return {
@@ -75,5 +78,56 @@ describe('useTimer', () => {
     await vi.waitFor(() => { expect(hook.result.current.remainingMs).toBe(58_500); });
     clock.t += 60_000;
     await vi.waitFor(() => { expect(hook.result.current.status).toBe('finished'); });
+  });
+});
+
+describe('useTimer: start cue', () => {
+  it('start → reset → start plays it twice', () => {
+    const { cues, hook } = setup();
+    act(() => { hook.result.current.start(); });
+    act(() => { hook.result.current.reset(); });
+    act(() => { hook.result.current.start(); });
+    expect(cues.playStart).toHaveBeenCalledTimes(2);
+  });
+
+  it('start → preset switch → start plays it twice', () => {
+    const { cues, hook } = setup();
+    act(() => { hook.result.current.start(); });
+    act(() => { hook.result.current.reset(30_000); });
+    act(() => { hook.result.current.start(); });
+    expect(cues.playStart).toHaveBeenCalledTimes(2);
+  });
+
+  it('start → pause → start plays it once', () => {
+    const { clock, cues, hook } = setup();
+    act(() => { hook.result.current.start(); });
+    clock.t += 3_000;
+    act(() => { hook.result.current.pause(); });
+    act(() => { hook.result.current.start(); });
+    expect(cues.playStart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useTimer: hidden page', () => {
+  it('runs no rAF loop while hidden and recomputes the remaining time on becoming visible', () => {
+    setVisibility('hidden', false);
+    const raf = vi.spyOn(window, 'requestAnimationFrame');
+    const { clock, hook } = setup();
+    act(() => { hook.result.current.start(); });
+    clock.t += 15_000;
+    expect(raf).not.toHaveBeenCalled();
+    expect(hook.result.current.remainingMs).toBe(60_000);
+
+    act(() => { setVisibility('visible'); });
+    expect(hook.result.current).toMatchObject({ status: 'running', remainingMs: 45_000 });
+    expect(raf).toHaveBeenCalled();
+  });
+
+  it('stops the rAF loop when the page is hidden', () => {
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame');
+    const { hook } = setup();
+    act(() => { hook.result.current.start(); });
+    act(() => { setVisibility('hidden'); });
+    expect(cancel).toHaveBeenCalled();
   });
 });

@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { PRESET_FULL_MS, PRESET_HALF_MS } from '../core/timer';
 import { PauseIcon, PlayIcon, SoundIcon, StopIcon } from './icons';
 
 interface ControlsProps {
   durationMs: number;
-  remainingMs: number;
+  /** Idle at full duration: nothing to reset. */
+  atStart: boolean;
   running: boolean;
   muted: boolean;
   onPreset: (durationMs: number) => void;
@@ -15,17 +16,16 @@ interface ControlsProps {
 
 const PRESETS = [PRESET_FULL_MS, PRESET_HALF_MS] as const;
 
-export function Controls(p: ControlsProps) {
-  const atStart = p.remainingMs === p.durationMs && !p.running;
+export const Controls = memo(function Controls(p: ControlsProps) {
   return (
     <div className="controls">
       <div className="presets">
         {PRESETS.map((ms) => (
-          <PresetButton key={ms} label={`${String(ms / 1000)}s`} active={p.durationMs === ms} onClick={() => { p.onPreset(ms); }} />
+          <PresetButton key={ms} seconds={ms / 1000} active={p.durationMs === ms} onClick={() => { p.onPreset(ms); }} />
         ))}
       </div>
       <div className="primary-row">
-        <SecondaryButton onClick={p.onReset} disabled={atStart} ariaLabel="Reset timer">
+        <SecondaryButton onClick={p.onReset} disabled={p.atStart} ariaLabel="Reset timer">
           <StopIcon size={18} />
         </SecondaryButton>
         <button
@@ -43,12 +43,19 @@ export function Controls(p: ControlsProps) {
       </div>
     </div>
   );
-}
+});
 
-function PresetButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function PresetButton({ seconds, active, onClick }: { seconds: number; active: boolean; onClick: () => void }) {
   return (
-    <button type="button" className="btn-preset" data-active={active || undefined} aria-pressed={active} onClick={onClick}>
-      <span className="btn-preset-label">{label}</span>
+    <button
+      type="button"
+      className="btn-preset"
+      data-active={active || undefined}
+      aria-pressed={active}
+      aria-label={`${String(seconds)} seconds`}
+      onClick={onClick}
+    >
+      <span className="btn-preset-label">{seconds}s</span>
       {active && <span className="btn-preset-bar" />}
     </button>
   );

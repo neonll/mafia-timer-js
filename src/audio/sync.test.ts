@@ -96,19 +96,20 @@ describe('timer ↔ warning cue sync', () => {
     }
   });
 
-  it('every frame inside the window re-syncs: a 0.5 s drift is seeked back', async () => {
-    const { warning, press, tick } = setup();
+  it('every frame inside the window re-syncs: a 1.2 s stall is seeked back, small drift is not', async () => {
+    const { cues, warning, press, tick } = setup();
     await press('start');
     tick(50_000);
     await act(() => microtasks());
-    const seeks = warning.seeks.length;
-    tick(16);
+    warning.advance(1.6 + 0.5); // 0.5 s ahead: left alone
+    tick(1_600);
     warning.advance(0.016);
-    expect(warning.seeks).toHaveLength(seeks); // in sync: nothing to do
-    warning.advance(0.5);
     tick(16);
-    expect(warning.seeks).toHaveLength(seeks + 1);
-    close(warning.currentTime, 0.032);
+    expect(cues.debugInfo().seeks).toBe(0);
+    warning.advance(0.016 + 0.7); // 1.2 s ahead
+    tick(16);
+    expect(cues.debugInfo().seeks).toBe(1);
+    close(warning.currentTime, 1.632);
   });
 
   it('back from the background inside the window: plays from the matching offset', async () => {

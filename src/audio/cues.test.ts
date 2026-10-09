@@ -223,29 +223,46 @@ describe('ensureWarning (sync)', () => {
     expect(other.warning.audiblePlays).toEqual([]);
   });
 
-  it('drift of 0.2 s is left alone; 0.5 s is seeked; a second seek within 1 s is skipped', async () => {
-    const { cues, warning, endAt } = await playingAt(8_000);
-    vi.advanceTimersByTime(1_000);
-    warning.advance(1.2); // 0.2 s ahead
+  it('drift of 0.2 s and 0.8 s is left alone; 1.2 s is seeked; a second seek within 3 s is skipped', async () => {
+    const { cues, warning, endAt } = await playingAt(9_500); // plays from 0.5
+    vi.advanceTimersByTime(2_000); // expected 2.5, past the spin-up window
+    warning.advance(2.2); // 0.2 s ahead
     const seeks = warning.seeks.length;
+    cues.ensureWarning(endAt);
+    warning.advance(0.6); // 0.8 s ahead
     cues.ensureWarning(endAt);
     expect(warning.seeks).toHaveLength(seeks);
 
-    warning.advance(0.3); // 0.5 s ahead
+    warning.advance(0.4); // 1.2 s ahead
     cues.ensureWarning(endAt);
     expect(warning.seeks).toHaveLength(seeks + 1);
-    close(warning.currentTime, 3);
+    close(warning.currentTime, 2.5);
 
-    vi.advanceTimersByTime(500);
-    warning.advance(1); // 0.5 s ahead again, only 500 ms after the last seek
+    vi.advanceTimersByTime(2_999);
+    warning.advance(2.999 + 1.2); // 1.2 s ahead again, under 3 s after the last seek
     cues.ensureWarning(endAt);
     expect(warning.seeks).toHaveLength(seeks + 1);
 
-    vi.advanceTimersByTime(500);
-    warning.advance(0.5); // 1 s since the last seek and still 0.5 s ahead: seeks again
+    vi.advanceTimersByTime(1); // 3 s since the last seek: allowed again
     cues.ensureWarning(endAt);
     expect(warning.seeks).toHaveLength(seeks + 2);
+    expect(cues.debugInfo().seeks).toBe(2);
+    close(cues.debugInfo().lastSeekDrift ?? NaN, 1.199);
     expect(cues.debugInfo().recent.at(-1)).toContain('drift');
+  });
+
+  it('seek stats start over with a new run, not on a resume', async () => {
+    const { cues, warning, endAt } = await playingAt(9_000);
+    vi.advanceTimersByTime(2_000);
+    warning.advance(4);
+    cues.ensureWarning(endAt);
+    expect(cues.debugInfo().seeks).toBe(1);
+    cues.disarmWarning(); // pause
+    cues.armWarning(Date.now() + 7_000); // resume
+    expect(cues.debugInfo().seeks).toBe(1);
+    cues.disarmWarning(true); // reset
+    cues.armWarning(Date.now() + 60_000); // fresh start
+    expect(cues.debugInfo()).toMatchObject({ seeks: 0, lastSeekDrift: null });
   });
 
   it('restarts a cue that stopped (or ended early) at the matching offset', async () => {
@@ -257,36 +274,34 @@ describe('ensureWarning (sync)', () => {
     close(warning.audiblePlays.at(-1), 3);
   });
 
-  it('does not seek while a play() is still starting up', async () => {
+  it('ignores drift for 1.5 s after a play() was requested, then seeks a stuck one', async () => {
     const { cues, warning } = setup();
     await tap(cues);
-    warning.nextPlay = 'hold';
+    warning.nextPlay = 'hold'; // iOS spinning up: currentTime does not move
     const endAt = Date.now() + 9_000;
     cues.armWarning(endAt);
-    vi.advanceTimersByTime(700); // currentTime has not moved yet
+    vi.advanceTimersByTime(1_499);
     const seeks = warning.seeks.length;
     cues.ensureWarning(endAt);
     expect(warning.seeks).toHaveLength(seeks);
     warning.settle();
     await microtasks();
-    cues.ensureWarning(endAt);
-    expect(warning.seeks).toHaveLength(seeks + 1);
-    close(warning.currentTime, 1.7);
-  });
-
-  it('a play() that never settles stops blocking the sync after a second', async () => {
-    const { cues, warning } = setup();
-    await tap(cues);
-    warning.nextPlay = 'hold';
-    const endAt = Date.now() + 9_000;
-    cues.armWarning(endAt);
-    vi.advanceTimersByTime(999);
-    const seeks = warning.seeks.length;
-    cues.ensureWarning(endAt);
+    cues.ensureWarning(endAt); // settled, but still inside the spin-up window
     expect(warning.seeks).toHaveLength(seeks);
     vi.advanceTimersByTime(1);
-    cues.ensureWarning(endAt);
+    cues.ensureWarning(endAt); // 1.5 s behind
     expect(warning.seeks).toHaveLength(seeks + 1);
+    close(warning.currentTime, 2.5);
+  });
+
+  it('a constant play-start latency below 1 s is never corrected', async () => {
+    const { cues, warning, endAt } = await playingAt(10_000);
+    for (let i = 0; i < 600; i++) {
+      vi.advanceTimersByTime(16);
+      if (i >= 25) warning.advance(0.016); // started 400 ms late, then plays at rate 1
+      cues.ensureWarning(endAt);
+    }
+    expect(cues.debugInfo().seeks).toBe(0);
   });
 
   it('a refused play() is logged with the element name and retried at most once a second', async () => {
@@ -323,6 +338,27 @@ describe('ensureWarning (sync)', () => {
     doc.dispatchEvent(new Event('visibilitychange'));
     expect(warning.audible).toBe(true);
     close(warning.currentTime, 2);
+  });
+
+  it('becoming visible seeks a stalled cue even right after a per-frame seek, but not a small drift', async () => {
+    const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' }) as unknown as Document;
+    const { cues, warning } = setup({ doc });
+    await tap(cues);
+    const endAt = Date.now() + 9_000;
+    cues.armWarning(endAt);
+    await microtasks();
+    vi.advanceTimersByTime(2_000);
+    warning.advance(4.2); // 1.2 s ahead
+    cues.ensureWarning(endAt);
+    expect(cues.debugInfo().seeks).toBe(1);
+    vi.advanceTimersByTime(500);
+    warning.advance(0.5 + 0.8); // 0.8 s ahead
+    doc.dispatchEvent(new Event('visibilitychange'));
+    expect(cues.debugInfo().seeks).toBe(1);
+    warning.advance(0.4); // 1.2 s ahead, 500 ms after the last seek
+    doc.dispatchEvent(new Event('visibilitychange'));
+    expect(cues.debugInfo().seeks).toBe(2);
+    close(warning.currentTime, 3.5);
   });
 });
 

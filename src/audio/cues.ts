@@ -12,7 +12,7 @@
  *   the end, and `syncWarning()` (called from that timeout, every animation
  *   frame inside the last ten seconds, and on becoming visible) starts it at
  *   the offset matching the clock, or seeks it when it has drifted by more than
- *   0.3 s (at most one seek per second).
+ *   1 s (a real stall; at most one seek per 3 s, none while a play is spinning up).
  * - Mute sets `muted` on both elements, so a toggle mid-countdown is immediate
  *   and the countdown stays in place underneath.
  *
@@ -30,9 +30,19 @@ type CueName = keyof typeof CUE_URLS;
 
 /** A finish observed later than this after the timer's end was not seen live. */
 const LIVE_FINISH_MS = 250;
-/** The warning is re-seeked when it is further than this from where the clock says it should be (s). */
-const DRIFT_TOLERANCE_S = 0.3;
-/** At most one corrective seek (or retry of a refused play) per this many ms. */
+/**
+ * The warning is re-seeked only when it is further than this from where the
+ * clock says it should be (s). It starts at the right offset and media playback
+ * rate is accurate, so the only steady error is the constant play-start latency,
+ * which is inaudible; seeks are for real stalls (hidden tab, interruption).
+ * Every seek is an audible skip, so this is deliberately coarse.
+ */
+const DRIFT_TOLERANCE_S = 1.0;
+/** At most one corrective seek per this many ms on the per-frame path. */
+const SEEK_INTERVAL_MS = 3_000;
+/** Drift is ignored for this long after a play() was requested: iOS reports a stale currentTime while it spins up. */
+const PLAY_SETTLE_MS = 1_500;
+/** At most one retry of a refused or stuck play() per this many ms. */
 const RETRY_INTERVAL_MS = 1_000;
 /** Diagnostics kept for the `?debug` overlay. */
 const RECENT_WARNINGS = 3;
@@ -66,6 +76,10 @@ export interface CuesDebugInfo {
   remainingMs: number | null;
   /** The setTimeout that starts the warning is pending. */
   timerPending: boolean;
+  /** Corrective seeks of the warning this run (since the last fresh start). */
+  seeks: number;
+  /** Drift (s) that triggered the last corrective seek, or null when none happened this run. */
+  lastSeekDrift: number | null;
   /** The last few warnings logged (newest last). */
   recent: readonly string[];
 }
@@ -144,6 +158,10 @@ export function createCues(opts: CuesOptions = {}): Cues {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   /** `now()` of the last corrective seek. */
   let lastSeekAt = -Infinity;
+  let seeks = 0;
+  let lastSeekDrift: number | null = null;
+  /** The last run finished or was reset: the next arm starts a new one (and new seek stats). */
+  let runOver = true;
 
   const warned = new Set<string>();
   const recent: string[] = [];
@@ -313,8 +331,12 @@ export function createCues(opts: CuesOptions = {}): Cues {
   /** A play() is in flight and recent (one that never settles stops counting after a second). */
   const starting = (cue: Cue) => cue.playPending && now() - cue.playAt < RETRY_INTERVAL_MS;
 
-  /** The core: make the warning play at the offset matching the timer clock. Idempotent. */
-  function syncWarning() {
+  /**
+   * The core: make the warning play at the offset matching the timer clock.
+   * Idempotent. `rateLimited` (the per-frame path) allows one corrective seek
+   * per SEEK_INTERVAL_MS; a resync after becoming visible may seek at once.
+   */
+  function syncWarning(rateLimited: boolean) {
     if (disposed || !warning) return;
     const offset = expectedOffset();
     if (offset === null) return;
@@ -327,13 +349,15 @@ export function createCues(opts: CuesOptions = {}): Cues {
       play(warning);
       return;
     }
-    // Still starting up: currentTime does not move yet, so drift means nothing.
-    if (starting(warning)) return;
+    const t = now();
+    // Still spinning up: currentTime is not trustworthy yet, so drift means nothing.
+    if (t - warning.playAt < PLAY_SETTLE_MS) return;
     const drift = el.currentTime - offset;
     if (Math.abs(drift) <= DRIFT_TOLERANCE_S) return;
-    const t = now();
-    if (t - lastSeekAt < RETRY_INTERVAL_MS) return;
+    if (rateLimited && t - lastSeekAt < SEEK_INTERVAL_MS) return;
     lastSeekAt = t;
+    seeks++;
+    lastSeekDrift = drift;
     recent.push(`warning drift ${drift.toFixed(2)} s; seeked to ${offset.toFixed(2)}`);
     if (recent.length > RECENT_WARNINGS) recent.shift();
     seek(warning, offset);
@@ -341,13 +365,19 @@ export function createCues(opts: CuesOptions = {}): Cues {
 
   function fire() {
     timeout = null;
-    syncWarning();
+    syncWarning(true);
   }
 
   function armWarning(at: number) {
     if (disposed) return;
     endAt = at;
     clearTimer();
+    if (runOver) {
+      runOver = false;
+      seeks = 0;
+      lastSeekDrift = null;
+      lastSeekAt = -Infinity;
+    }
     const lead = at - now() - WARNING_MS;
     if (lead > 0) {
       // Not in the window yet: make sure nothing is left playing from an earlier run.
@@ -361,12 +391,13 @@ export function createCues(opts: CuesOptions = {}): Cues {
   function ensureWarning(at: number) {
     if (disposed) return;
     endAt = at;
-    syncWarning();
+    syncWarning(true);
   }
 
   function disarmWarning(rewind = false) {
     endAt = null;
     clearTimer();
+    if (rewind) runOver = true;
     if (!warning) return;
     pause(warning);
     if (rewind) seek(warning, 0);
@@ -375,6 +406,7 @@ export function createCues(opts: CuesOptions = {}): Cues {
   function releaseWarning() {
     const at = endAt;
     endAt = null;
+    runOver = true;
     clearTimer();
     if (!warning || at === null) return;
     // A finish seen live rings out (stopping would clip the last beep); a late one is silenced.
@@ -382,7 +414,7 @@ export function createCues(opts: CuesOptions = {}): Cues {
   }
 
   const onVisibility = () => {
-    if (doc?.visibilityState === 'visible') syncWarning();
+    if (doc?.visibilityState === 'visible') syncWarning(false);
   };
   doc?.addEventListener('visibilitychange', onVisibility);
 
@@ -423,6 +455,8 @@ export function createCues(opts: CuesOptions = {}): Cues {
         drift: offset === null || !warning ? null : warning.el.currentTime - offset,
         remainingMs: endAt === null ? null : endAt - now(),
         timerPending: timeout !== null,
+        seeks,
+        lastSeekDrift,
         recent: [...recent],
       };
     },

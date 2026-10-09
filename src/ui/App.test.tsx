@@ -14,7 +14,7 @@ const fakeCues = (): Cues => ({
   disarmWarning: vi.fn(),
   releaseWarning: vi.fn(),
   setMuted: vi.fn(),
-  debugInfo: vi.fn(() => ({ start: null, warning: null, expectedOffset: null, drift: null, remainingMs: null, timerPending: false, recent: [] })),
+  debugInfo: vi.fn(() => ({ start: null, warning: null, expectedOffset: null, drift: null, remainingMs: null, timerPending: false, seeks: 0, lastSeekDrift: null, recent: [] })),
   dispose: vi.fn(),
 });
 

@@ -34,14 +34,13 @@ describe('first tap', () => {
     cues.playStart();
     cues.armWarning(clock.t + 60_000);
     expect(ctx.state).toBe('suspended');
-    const early = ctx.lastWarning;
+    // Nothing is scheduled against the frozen clock of a suspended context.
+    expect(ctx.warnings).toHaveLength(0);
     // resume() takes a while; the timer clock keeps going, the audio clock does not.
     clock.t += 200;
     await flush(1);
     expect(ctx.state).toBe('running');
-    expect(early?.stopped).toBe(true);
     const w = ctx.lastWarning;
-    expect(w).not.toBe(early);
     close(w?.started?.when, 0 + 49.8);
     expect(ctx.liveWarnings).toHaveLength(1);
     expect(ctx.starts).toHaveLength(1);
@@ -49,7 +48,7 @@ describe('first tap', () => {
 });
 
 describe('warning scheduling', () => {
-  it('starts the file 10 s before the end, via the output timestamp', async () => {
+  it('starts the file 10 s before the end on the audio clock', async () => {
     const { clock, ctx, cues } = await setup();
     await tap(cues);
     ctx.advance(3_000);
@@ -67,7 +66,7 @@ describe('warning scheduling', () => {
     close(ctx.lastWarning?.started?.offset, 2.5);
   });
 
-  it('without getOutputTimestamp, compensates the reported output latency in both branches', async () => {
+  it('compensates the reported output latency in both branches (with or without getOutputTimestamp)', async () => {
     const { clock, ctx, cues } = await setup({ ctx: { timestamp: false, outputLatency: 0.2 } });
     await tap(cues);
     ctx.advance(1_000);
@@ -124,6 +123,90 @@ describe('warning scheduling', () => {
     release();
     await flush();
     close(ctx.lastWarning?.started?.when, ctx.currentTime + 25);
+  });
+});
+
+describe('clock mapping', () => {
+  it('ignores a stale output timestamp after a suspend (WebKit)', async () => {
+    const { clock, ctx, cues } = await setup();
+    await tap(cues);
+    ctx.advance(2_000);
+    void ctx.suspend();
+    await flush(1);
+    ctx.advance(20_000); // frozen audio clock; the timestamp stays at the suspend
+    void ctx.resume();
+    await flush(1);
+    cues.armWarning(clock.t + 40_000);
+    close(ctx.lastWarning?.started?.when, ctx.currentTime + 30);
+  });
+
+  it('clamps an absurd reported latency to 0.5 s', async () => {
+    const { clock, ctx, cues } = await setup({ ctx: { outputLatency: 7 } });
+    await tap(cues);
+    cues.armWarning(clock.t + 30_000);
+    close(ctx.lastWarning?.started?.when, ctx.currentTime + 20 - 0.5);
+  });
+});
+
+describe('ensureWarning (crossing self-heal)', () => {
+  it('is a no-op when the schedule is within tolerance', async () => {
+    const { clock, ctx, cues } = await setup();
+    await tap(cues);
+    const endAt = clock.t + 30_000;
+    cues.armWarning(endAt);
+    ctx.advance(20_100);
+    ctx.skew(0.1); // 100 ms off: inside the 150 ms tolerance
+    cues.ensureWarning(endAt);
+    expect(ctx.warnings).toHaveLength(1);
+    expect(ctx.liveWarnings).toHaveLength(1);
+  });
+
+  it('restarts a cue that is off by more than 150 ms at the offset matching the clock', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { clock, ctx, cues } = await setup();
+    await tap(cues);
+    const endAt = clock.t + 30_000;
+    cues.armWarning(endAt);
+    ctx.advance(21_000);
+    ctx.skew(-0.5);
+    cues.ensureWarning(endAt);
+    const [first, second] = ctx.warnings;
+    expect(first?.stopped).toBe(true);
+    close(second?.started?.when, ctx.currentTime);
+    close(second?.started?.offset, 1);
+    expect(ctx.liveWarnings).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('out of sync'), expect.stringContaining('fileStart='), null);
+    expect(cues.debugInfo().recent.at(-1)).toContain('expected=');
+  });
+
+  it('starts a missing cue, resuming a suspended context', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { clock, ctx, cues } = await setup();
+    await tap(cues);
+    const endAt = clock.t + 8_000;
+    ctx.interrupt();
+    cues.ensureWarning(endAt);
+    expect(ctx.liveWarnings).toHaveLength(1);
+    close(ctx.lastWarning?.started?.offset, 2);
+    ctx.advance(300); // resume takes a while: the first source is now 300 ms late
+    await flush(1);
+    expect(ctx.state).toBe('running');
+    expect(ctx.liveWarnings).toHaveLength(1);
+    close(ctx.lastWarning?.started?.offset, 2.3);
+  });
+});
+
+describe('offset guard', () => {
+  it('never starts the file at an offset at or past its end', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // 0.5 s latency with 20 ms left: the matching offset (10.48 s) is past the 10.06 s file.
+    const { clock, ctx, cues } = await setup({ ctx: { outputLatency: 0.5 } });
+    await tap(cues);
+    cues.armWarning(clock.t + 20);
+    cues.ensureWarning(clock.t + 20);
+    expect(ctx.warnings).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('outside the file'), expect.stringContaining('duration='), null);
+    for (const s of ctx.sources) expect(s.started?.offset ?? 0).toBeLessThan(10.06);
   });
 });
 

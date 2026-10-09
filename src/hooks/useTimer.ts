@@ -106,6 +106,8 @@ export function useTimer(cues: Cues | null, opts: UseTimerOptions = {}): TimerCo
   useEffect(() => {
     if (!running || !visible) return;
     let id = 0;
+    /** This loop has already had the cues check the warning (once per run segment / visible stretch). */
+    let checked = false;
     const frame = () => {
       const at = now();
       const s = stateRef.current;
@@ -116,6 +118,10 @@ export function useTimer(cues: Cues | null, opts: UseTimerOptions = {}): TimerCo
         return;
       }
       const left = timer.remaining(s, at);
+      if (!checked && left <= timer.WARNING_MS) {
+        checked = true;
+        cues?.ensureWarning(s.endAt);
+      }
       setView((v) => (v.remainingMs === left ? v : { ...v, remainingMs: left }));
       id = requestAnimationFrame(frame);
     };

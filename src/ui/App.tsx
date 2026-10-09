@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { readStoredMute, storeMute, type Cues } from '../audio/cues';
 import { WARNING_MS } from '../core/timer';
 import { useHaptics } from '../hooks/useHaptics';
@@ -6,6 +6,11 @@ import { useTimer } from '../hooks/useTimer';
 import logoUrl from '../assets/mafia-logo.png';
 import { Controls } from './Controls';
 import { Ring } from './Ring';
+
+/** `?debug` or `#debug` in the URL shows the audio diagnostics overlay. */
+const DEBUG =
+  typeof location !== 'undefined' && (new URLSearchParams(location.search).has('debug') || location.hash === '#debug');
+const DebugOverlay = DEBUG ? lazy(() => import('./DebugOverlay')) : null;
 
 /** Elements that handle Space themselves (a focused button activates on Space). */
 const SPACE_TARGETS = 'button, a, input, select, textarea, [contenteditable]';
@@ -76,6 +81,11 @@ export function App({ cues, now }: AppProps) {
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
       </div>
+      {DebugOverlay && (
+        <Suspense fallback={null}>
+          <DebugOverlay cues={cues} remainingMs={t.remainingMs} />
+        </Suspense>
+      )}
     </main>
   );
 }

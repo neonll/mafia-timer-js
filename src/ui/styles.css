@@ -97,6 +97,9 @@ button:focus-visible {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+  /* Phone-width column on wide windows (no effect up to 430px). */
+  max-width: 430px;
+  margin-inline: auto;
   min-height: 100vh;
   min-height: 100dvh;
   padding: calc(var(--pad-top) + env(safe-area-inset-top)) calc(22px + env(safe-area-inset-right))

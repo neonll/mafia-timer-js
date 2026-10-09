@@ -63,6 +63,10 @@ Alternatively connect the GitHub repo to Cloudflare Workers Builds with build co
   small, constant play-start latency is left alone. Pause pauses it, reset rewinds it; mute mutes both elements.
 - `src/hooks/useTimer.ts` ties it together: a `requestAnimationFrame` loop while running and
   visible, a resync on `visibilitychange`, and a screen wake lock while running.
+- The sounds are not precached: they are runtime-cached (`sounds` cache) with range-request
+  support, because media elements fetch with Range headers on every seek and the precache cannot
+  answer those (a resumed countdown restarted from 0). The app fetches each file in full once so
+  the cache holds the whole file and serves slices of it offline.
 - The service worker updates in the background and never reloads the page; a new version is
   picked up on the next launch.
 

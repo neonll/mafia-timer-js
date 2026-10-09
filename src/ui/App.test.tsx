@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createCues, type Cues } from '../audio/cues';
-import { FakeAudioContext, cuesOptions, flush, type Clock } from '../test/fakeAudio';
+import { createCues, readStoredMute, type Cues } from '../audio/cues';
+import { cuesOptions, microtasks } from '../test/fakeAudio';
 import { noAnimationFrames, restoreVisibility, setVisibility } from '../test/dom';
 import { App } from './App';
 
@@ -14,7 +14,7 @@ const fakeCues = (): Cues => ({
   disarmWarning: vi.fn(),
   releaseWarning: vi.fn(),
   setMuted: vi.fn(),
-  debugInfo: vi.fn(() => ({ state: 'none' as const, currentTime: null, baseLatency: null, outputLatency: null, fileStart: null, warningPlaying: false, recent: [] })),
+  debugInfo: vi.fn(() => ({ start: null, warning: null, expectedOffset: null, drift: null, remainingMs: null, timerPending: false, recent: [] })),
   dispose: vi.fn(),
 });
 
@@ -72,18 +72,20 @@ describe('App', () => {
     expect(button('Unmute')).toBeTruthy();
   });
 
-  it('starts muted from storage: the gain is 0 at unlock', async () => {
+  it('starts muted from storage: both elements muted, no start cue', async () => {
     localStorage.setItem('mafia-timer:muted', '1');
-    const clock: Clock = { t: 0 };
-    const ctx = new FakeAudioContext(clock);
-    const cues = createCues(cuesOptions(ctx, clock));
-    await flush();
-    render(<App cues={cues} now={() => clock.t} />);
+    const { opts, els } = cuesOptions({ muted: readStoredMute() });
+    const cues = createCues(opts);
+    render(<App cues={cues} />);
     expect(button('Unmute')).toBeTruthy();
     fireEvent.click(button('Start timer'));
-    await flush(1);
-    expect(ctx.state).toBe('running');
-    expect(ctx.gainNode.gain.value).toBe(0);
+    await microtasks();
+    expect(els.start.muted).toBe(true);
+    expect(els.warning.muted).toBe(true);
+    expect(els.start.audiblePlays).toEqual([]);
+    fireEvent.click(button('Unmute'));
+    expect(els.start.muted).toBe(false);
+    expect(els.warning.muted).toBe(false);
   });
 
   it('tolerates a throwing localStorage', () => {

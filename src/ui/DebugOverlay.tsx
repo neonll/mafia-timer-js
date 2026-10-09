@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Cues, CuesDebugInfo } from '../audio/cues';
+import type { CueElementInfo, Cues, CuesDebugInfo } from '../audio/cues';
 
 interface DebugOverlayProps {
   cues: Cues | null;
@@ -7,6 +7,11 @@ interface DebugOverlayProps {
 }
 
 const num = (n: number | null, dp: number) => (n === null ? '—' : n.toFixed(dp));
+
+const element = (name: string, e: CueElementInfo | null) =>
+  e === null
+    ? `${name} none`
+    : `${name} rs=${String(e.readyState)} ${e.paused ? 'paused' : 'playing'} t=${e.currentTime.toFixed(2)}${e.errorCode === null ? '' : ` err=${String(e.errorCode)}`}`;
 
 /**
  * Opt-in audio diagnostics (`?debug` or `#debug`): what the cue engine thinks,
@@ -29,9 +34,10 @@ export default function DebugOverlay({ cues, remainingMs }: DebugOverlayProps) {
 
   const lines = info
     ? [
-        `ctx ${info.state} t=${num(info.currentTime, 2)}`,
-        `lat base=${num(info.baseLatency, 3)} out=${num(info.outputLatency, 3)}`,
-        `warn fileStart=${num(info.fileStart, 2)} ${info.fileStart === null ? '' : info.warningPlaying ? 'playing' : 'pending'}`,
+        element('start', info.start),
+        element('warn ', info.warning),
+        `warn expected=${num(info.expectedOffset, 2)} drift=${num(info.drift, 2)}`,
+        `armed left=${info.remainingMs === null ? '—' : String(Math.round(info.remainingMs))} ms timeout=${info.timerPending ? 'pending' : 'none'}`,
         `remaining ${String(Math.round(remainingMs))} ms`,
         ...info.recent.map((m) => `! ${m}`),
       ]

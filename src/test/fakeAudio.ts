@@ -1,171 +1,112 @@
 /**
- * A deliberately strict Web Audio fake for the cue tests: the audio clock only
- * advances while the context is running, resume()/suspend() change state
- * asynchronously and fire `statechange`, and sources keep their listeners so
- * tests can fire `ended`.
+ * A media-element fake for the cue tests: play() flips `paused` and returns a
+ * promise (resolved by default; tests can hold or refuse it), currentTime only
+ * moves when a test advances it, and every play/seek/load is recorded.
  */
-import { CUE_URLS } from '../audio/cues';
-import type { CuesOptions } from '../audio/cues';
+import { CUE_URLS, type CueElement, type CuesOptions } from '../audio/cues';
 
 type Listener = () => void;
 
-export interface Clock {
-  t: number;
-}
+export class FakeMediaElement implements CueElement {
+  paused = true;
+  ended = false;
+  muted = false;
+  preload: '' | 'none' | 'metadata' | 'auto' = '';
+  playsInline = false;
+  readyState = 4;
+  error: MediaError | null = null;
+  /** Offsets (s) at which play() was called while audible, i.e. not muted. */
+  readonly audiblePlays: number[] = [];
+  /** Every play() call: offset and whether the element was muted then. */
+  readonly plays: { at: number; muted: boolean }[] = [];
+  /** Every assignment to currentTime. */
+  readonly seeks: number[] = [];
+  loads = 0;
+  /** How the next play() settles: 'resolve' (default), 'reject', or 'hold' (stays pending until `settle()`). */
+  nextPlay: 'resolve' | 'reject' | 'hold' = 'resolve';
+  private held: (() => void) | null = null;
+  private time = 0;
+  private readonly listeners = new Map<string, Listener[]>();
 
-export class FakeBuffer {
-  constructor(
-    readonly url: string,
-    readonly duration = 10.06,
-  ) {}
-}
+  constructor(readonly src: string) {}
 
-export class FakeSource {
-  buffer: FakeBuffer | null = null;
-  started: { when: number; offset: number } | null = null;
-  stopped = false;
-  connected = false;
-  private readonly listeners: Listener[] = [];
-
-  connect() { this.connected = true; }
-  disconnect() { this.connected = false; }
-  addEventListener(type: string, cb: Listener) {
-    if (type === 'ended') this.listeners.push(cb);
-  }
-  start(when = 0, offset = 0) {
-    if (this.started) throw new Error('InvalidStateError: start() called twice');
-    this.started = { when, offset };
-  }
-  stop() {
-    if (!this.started) throw new Error('InvalidStateError: stop() before start()');
-    this.stopped = true;
-  }
-  /** Fire `ended`, as the engine does when playback finishes or after stop(). */
-  end() { for (const cb of this.listeners) cb(); }
-  get isWarning() { return this.buffer?.url === CUE_URLS.warning; }
-  get isStart() { return this.buffer?.url === CUE_URLS.start; }
-  /** Started and not stopped: it will be (or is being) heard. */
-  get live() { return this.started !== null && !this.stopped; }
-}
-
-export interface FakeContextOptions {
-  /**
-   * Provide a getOutputTimestamp() that behaves like WebKit's: frozen at the
-   * last suspend (zeros before the first run). Default true. The cue engine
-   * must not depend on it.
-   */
-  timestamp?: boolean;
-  outputLatency?: number;
-  /** Number of resume() calls to reject before succeeding. */
-  refuseResume?: number;
-}
-
-export class FakeAudioContext {
-  state: AudioContextState = 'suspended';
-  currentTime = 0;
-  outputLatency: number | undefined;
-  readonly destination = {};
-  readonly sources: FakeSource[] = [];
-  readonly gainNode = {
-    gain: {
-      value: 1,
-      setTargetAtTime(v: number) { this.value = v; },
-    },
-    connect() { /* noop */ },
-  };
-  resumeCalls = 0;
-  suspendCalls = 0;
-  /** The stale output timestamp: the last rendered quantum before the last suspend. */
-  private staleStamp: AudioTimestamp = { contextTime: 0, performanceTime: 0 };
-  private readonly listeners: Listener[] = [];
-  private refuse: number;
-  getOutputTimestamp?: () => AudioTimestamp;
-
-  constructor(
-    private readonly clock: Clock,
-    opts: FakeContextOptions = {},
-  ) {
-    this.outputLatency = opts.outputLatency;
-    this.refuse = opts.refuseResume ?? 0;
-    if (opts.timestamp ?? true) {
-      this.getOutputTimestamp = () => ({ ...this.staleStamp });
-    }
+  get currentTime() { return this.time; }
+  set currentTime(t: number) {
+    this.seeks.push(t);
+    this.time = t;
+    this.ended = false;
   }
 
-  createGain() { return this.gainNode; }
-  createBufferSource() {
-    const s = new FakeSource();
-    this.sources.push(s);
-    return s;
-  }
-  addEventListener(type: string, cb: Listener) {
-    if (type === 'statechange') this.listeners.push(cb);
-  }
-  decodeAudioData(data: ArrayBuffer): Promise<FakeBuffer> {
-    return Promise.resolve(new FakeBuffer(new TextDecoder().decode(data)));
-  }
-  resume(): Promise<void> {
-    this.resumeCalls++;
-    if (this.refuse > 0) {
-      this.refuse--;
-      return Promise.reject(new Error('NotAllowedError'));
-    }
-    return Promise.resolve().then(() => { this.setState('running'); });
-  }
-  suspend(): Promise<void> {
-    this.suspendCalls++;
-    return Promise.resolve().then(() => { this.setState('suspended'); });
-  }
-  close(): Promise<void> {
-    this.setState('closed');
+  play(): Promise<void> {
+    this.plays.push({ at: this.time, muted: this.muted });
+    if (!this.muted) this.audiblePlays.push(this.time);
+    const mode = this.nextPlay;
+    this.nextPlay = 'resolve';
+    if (mode === 'reject') return Promise.reject(new Error('NotAllowedError'));
+    this.paused = false;
+    this.ended = false;
+    if (mode === 'hold') return new Promise((resolve) => { this.held = resolve; });
     return Promise.resolve();
   }
-  /** Make the next `n` resume() calls reject (as iOS does outside a gesture). */
-  refuseNext(n: number) { this.refuse = n; }
-  /** Jump the audio clock by `s` seconds without moving the timer clock (a clock-mapping glitch). */
-  skew(s: number) { this.currentTime += s; }
-  /** The OS takes the audio away (iOS: lock screen, app switch, call). */
-  interrupt() { this.setState('suspended'); }
-  /** Let `ms` pass on the timer clock; the audio clock follows only while running. */
-  advance(ms: number) {
-    this.clock.t += ms;
-    if (this.state === 'running') this.currentTime += ms / 1000;
+
+  /** Resolve a held play(). */
+  settle() {
+    this.held?.();
+    this.held = null;
   }
 
-  get warnings() { return this.sources.filter((s) => s.isWarning); }
-  get starts() { return this.sources.filter((s) => s.isStart); }
-  get liveWarnings() { return this.warnings.filter((s) => s.live); }
-  get lastWarning() { return this.warnings.at(-1); }
+  pause() { this.paused = true; }
 
-  private setState(s: AudioContextState) {
-    if (this.state === s) return;
-    this.state = s;
-    if (s !== 'running') this.staleStamp = { contextTime: this.currentTime, performanceTime: this.clock.t };
-    for (const cb of this.listeners) cb();
+  load() {
+    this.loads++;
+    this.error = null;
+    this.paused = true;
+    this.time = 0;
   }
+
+  addEventListener(type: string, cb: Listener) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), cb]);
+  }
+
+  dispatch(type: string) {
+    for (const cb of this.listeners.get(type) ?? []) cb();
+  }
+
+  /** Let `s` seconds of playback pass (no-op while paused). */
+  advance(s: number) {
+    if (!this.paused) this.time += s;
+  }
+
+  /** Playing and audible. */
+  get audible() { return !this.paused && !this.muted; }
 }
 
-/** An OfflineAudioContext stand-in whose decode returns a FakeBuffer named after the URL. */
-export const fakeOffline = () =>
-  ({
-    decodeAudioData: (data: ArrayBuffer) => Promise.resolve(new FakeBuffer(new TextDecoder().decode(data))),
-  }) as unknown as BaseAudioContext;
+export interface FakeElements {
+  start: FakeMediaElement;
+  warning: FakeMediaElement;
+}
 
-/** fetch() stand-in: the body is the URL itself, so decoded buffers know which cue they are. */
-export const okFetch = (url: string) => Promise.resolve(new Response(url, { headers: { 'content-type': 'audio/mpeg' } }));
+/** Options for createCues backed by two fake elements; the clock is `Date.now()` (fake-timer friendly). */
+export function cuesOptions(extra: Partial<CuesOptions> = {}): { opts: CuesOptions; els: FakeElements } {
+  const els: FakeElements = {
+    start: new FakeMediaElement(CUE_URLS.start),
+    warning: new FakeMediaElement(CUE_URLS.warning),
+  };
+  const opts: CuesOptions = {
+    now: () => Date.now(),
+    createElement: (url) => (url === CUE_URLS.start ? els.start : els.warning),
+    doc: null,
+    ...extra,
+  };
+  return { opts, els };
+}
 
-/** Let pending promise chains (fetch → arrayBuffer → decode) settle. */
+/** Let pending promise chains settle. */
 export async function flush(times = 5) {
   for (let i = 0; i < times; i++) await new Promise((r) => setTimeout(r, 0));
 }
 
-export function cuesOptions(ctx: FakeAudioContext, clock: Clock, extra: Partial<CuesOptions> = {}): CuesOptions {
-  return {
-    now: () => clock.t,
-    audioContext: () => ctx as unknown as AudioContext,
-    offlineContext: fakeOffline,
-    fetch: okFetch,
-    doc: null,
-    ...extra,
-  };
+/** Let pending microtasks settle without touching (possibly fake) timers. */
+export async function microtasks(times = 5) {
+  for (let i = 0; i < times; i++) await Promise.resolve();
 }

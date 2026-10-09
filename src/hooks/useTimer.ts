@@ -54,6 +54,7 @@ export function useTimer(cues: Cues | null, opts: UseTimerOptions = {}): TimerCo
     const prev = stateRef.current;
     const next = timer.settle(prev, at);
     if (next !== prev) cues?.releaseWarning();
+    else if (next.status === 'running') cues?.ensureWarning(next.endAt);
     commit(next, at);
   }, [commit, cues, now]);
 
@@ -79,7 +80,7 @@ export function useTimer(cues: Cues | null, opts: UseTimerOptions = {}): TimerCo
 
   const reset = useCallback(
     (durationMs?: number) => {
-      cues?.disarmWarning();
+      cues?.disarmWarning(true);
       commit(timer.reset(stateRef.current, durationMs), now());
     },
     [commit, cues, now],
@@ -106,8 +107,6 @@ export function useTimer(cues: Cues | null, opts: UseTimerOptions = {}): TimerCo
   useEffect(() => {
     if (!running || !visible) return;
     let id = 0;
-    /** This loop has already had the cues check the warning (once per run segment / visible stretch). */
-    let checked = false;
     const frame = () => {
       const at = now();
       const s = stateRef.current;
@@ -118,10 +117,8 @@ export function useTimer(cues: Cues | null, opts: UseTimerOptions = {}): TimerCo
         return;
       }
       const left = timer.remaining(s, at);
-      if (!checked && left <= timer.WARNING_MS) {
-        checked = true;
-        cues?.ensureWarning(s.endAt);
-      }
+      // Inside the last ten seconds, keep the countdown cue locked to the clock (cheap when in sync).
+      if (left <= timer.WARNING_MS) cues?.ensureWarning(s.endAt);
       setView((v) => (v.remainingMs === left ? v : { ...v, remainingMs: left }));
       id = requestAnimationFrame(frame);
     };

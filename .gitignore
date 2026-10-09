@@ -1,1 +1,7 @@
+node_modules/
+dist/
+dev-dist/
+.wrangler/
+*.tsbuildinfo
 .vscode/
+.DS_Store

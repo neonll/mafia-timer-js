@@ -25,10 +25,25 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Everything in dist/ (public/ included): app shell, font, logo, icons and both cues.
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,mp3,txt,webmanifest}'],
+        // Everything in dist/ (public/ included) except the sounds: app shell, font, logo, icons.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,txt,webmanifest}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
+        // The cues are NOT precached: media elements fetch with Range headers (every seek), and
+        // the precache handler cannot answer those, so a seek failed and playback restarted at 0.
+        // A runtime cache with range support serves 206 slices of the full file instead. Only
+        // full 200 responses are stored (never a 206); cues.ts warms the cache with a plain fetch.
+        runtimeCaching: [
+          {
+            urlPattern: /\/sounds\/[^/]+\.mp3$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sounds', // SOUND_CACHE in src/audio/cues.ts
+              rangeRequests: true,
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

@@ -126,7 +126,37 @@ export interface CuesOptions {
 
 function defaultCreateElement(url: string): CueElement | null {
   if (typeof Audio === 'undefined') return null;
-  return new Audio(url);
+  const el = new Audio();
+  // CORS mode, even same-origin: the service worker can only serve range slices to it then.
+  el.crossOrigin = 'anonymous';
+  el.src = url;
+  return el;
+}
+
+/** The service worker's runtime cache for the cues (`cacheName` in vite.config.ts). */
+const SOUND_CACHE = 'sounds';
+
+/**
+ * Media elements only ever fetch with a Range header (206, which the service
+ * worker never caches), so fetch each cue in full once: the 200 lands in the
+ * SW's range-capable `sounds` cache and seeks are served as slices of it. On a
+ * first visit the page is not controlled by the SW yet (it does not claim
+ * clients), so a plain fetch would bypass it; then the page fills the cache
+ * itself, so the cues still work offline after a single visit.
+ */
+function warmUpCache(): void {
+  if (typeof fetch !== 'function') return;
+  const urls = Object.values(CUE_URLS);
+  // navigator.serviceWorker is missing outside secure contexts, whatever the typings say.
+  const controlled = typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller !== null;
+  if (controlled || typeof caches === 'undefined') {
+    for (const url of urls) void fetch(url, { cache: 'default' }).catch(() => undefined);
+    return;
+  }
+  void caches
+    .open(SOUND_CACHE)
+    .then((cache) => Promise.all(urls.map(async (url) => { if (!(await cache.match(url))) await cache.add(url); })))
+    .catch(() => undefined);
 }
 
 interface Cue {
@@ -147,6 +177,8 @@ interface Cue {
 export function createCues(opts: CuesOptions = {}): Cues {
   const now = opts.now ?? (() => performance.now());
   const makeElement = opts.createElement ?? defaultCreateElement;
+  // Only for real elements (tests inject their own and must not hit the network).
+  if (!opts.createElement) warmUpCache();
   const doc = opts.doc === undefined ? (typeof document === 'undefined' ? null : document) : opts.doc;
 
   let muted = opts.muted ?? false;

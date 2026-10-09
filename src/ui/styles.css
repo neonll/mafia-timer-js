@@ -179,10 +179,6 @@ button:focus-visible {
   touch-action: manipulation;
 }
 
-.ring-hit:disabled {
-  cursor: default;
-}
-
 .ring-hit:focus-visible {
   outline: none;
 }

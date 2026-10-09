@@ -11,17 +11,16 @@ interface RingProps {
   status: TimerStatus;
   remainingMs: number;
   durationMs: number;
-  /** Same start/pause toggle as the primary button (pointer-only shortcut). */
-  onToggle: () => void;
+  /** Pointer-only shortcut: start/pause while counting, reset once time is up. */
+  onTap: () => void;
 }
 
 /**
- * Tapping the ring starts/pauses: a transparent hit area over it, hidden from
- * assistive tech and out of the tab order (the primary button is the
- * accessible control; Space covers keyboards). Inert once time is up, so a tap
- * on TIME'S UP never restarts by accident.
+ * Tapping the ring starts/pauses, and on TIME'S UP resets (never restarts): a
+ * transparent hit area over it, hidden from assistive tech and out of the tab
+ * order (the buttons are the accessible controls; Space covers keyboards).
  */
-export function Ring({ status, remainingMs, durationMs, onToggle }: RingProps) {
+export function Ring({ status, remainingMs, durationMs, onTap }: RingProps) {
   const display = Math.ceil(remainingMs / 1000);
   // Finished holds a full red ring rather than an empty one.
   const pct = status === 'finished' ? 1 : Math.max(0, Math.min(1, remainingMs / durationMs));
@@ -80,8 +79,7 @@ export function Ring({ status, remainingMs, durationMs, onToggle }: RingProps) {
         className="ring-hit"
         tabIndex={-1}
         aria-hidden="true"
-        disabled={status === 'finished'}
-        onClick={onToggle}
+        onClick={onTap}
       />
     </div>
   );

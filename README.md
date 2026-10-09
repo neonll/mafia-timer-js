@@ -14,8 +14,9 @@ while the timer runs.
 - **Speaker** — mute or unmute the cues (remembered on this device).
 
 While paused the ring dims and reads PAUSED; when time is up it stays full and red and reads
-TIME'S UP until you reset or start again (with the buttons: tapping the ring does nothing then, so
-an accidental tap can't restart the timer). On Android the phone also vibrates briefly when the
+TIME'S UP until you reset or start again. Tapping the ring then resets it (like the square
+button) rather than restarting, so an accidental tap can't start a new speech; the Play button
+starts again. On Android the phone also vibrates briefly when the
 last ten seconds start and twice when time is up (regardless of mute; iPhones have no
 vibration API for web pages).
 

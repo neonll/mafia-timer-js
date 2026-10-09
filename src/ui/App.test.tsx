@@ -214,7 +214,27 @@ describe('App: tap the ring', () => {
     expect(main().hasAttribute('data-paused')).toBe(true);
   });
 
-  it('does nothing once time is up; the primary button restarts', () => {
+  it("tap on TIME'S UP resets: status idle, remaining = duration, no start cue", () => {
+    const clock = { t: 0 };
+    const c = fakeCues();
+    render(<App cues={c} now={() => clock.t} />);
+    fireEvent.click(button('30 seconds'));
+    fireEvent.click(ringHit());
+    clock.t = 30_000;
+    tick();
+    expect(main().hasAttribute('data-finished')).toBe(true);
+
+    fireEvent.click(ringHit());
+    expect(main().hasAttribute('data-finished')).toBe(false);
+    expect(digits()).toBe('30');
+    expect(document.querySelector('.ring-label')?.textContent).toBe('30s');
+    expect(button('Start timer')).toBeTruthy();
+    expect(button('Reset timer')).toHaveProperty('disabled', true); // idle
+    expect(c.playStart).toHaveBeenCalledOnce();
+    expect(c.unlock).toHaveBeenCalledOnce();
+  });
+
+  it('the primary button restarts from TIME\'S UP', () => {
     const clock = { t: 0 };
     const c = fakeCues();
     render(<App cues={c} now={() => clock.t} />);
@@ -222,10 +242,6 @@ describe('App: tap the ring', () => {
     clock.t = 60_000;
     tick();
     expect(main().hasAttribute('data-finished')).toBe(true);
-
-    fireEvent.click(ringHit());
-    expect(main().hasAttribute('data-finished')).toBe(true);
-    expect(c.playStart).toHaveBeenCalledOnce();
 
     fireEvent.click(button('Start timer'));
     expect(main().hasAttribute('data-finished')).toBe(false);

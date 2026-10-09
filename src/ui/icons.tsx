@@ -16,9 +16,21 @@ export const PauseIcon = ({ size = 28, color = '#fff' }: IconProps) => (
   </svg>
 );
 
-export const StopIcon = ({ size = 22, color = '#fff' }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 22 22" aria-hidden="true">
-    <rect x="5" y="5" width="12" height="12" rx="1.5" fill={color} />
+/** Counter-clockwise circular arrow (reset), stroked in currentColor to match SoundIcon. */
+export const ResetIcon = ({ size = 20 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3.5 10a6.5 6.5 0 1 0 1.9-4.6" />
+    <path d="M5.4 1.9v3.5h3.5" />
   </svg>
 );
 

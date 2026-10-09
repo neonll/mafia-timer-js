@@ -67,7 +67,12 @@ export function App({ cues, now }: AppProps) {
       <div className="logo-wrap">
         <img className="logo" src={logoUrl} alt="Mafia" />
       </div>
-      <Ring status={t.status} remainingMs={t.remainingMs} durationMs={t.durationMs} onToggle={toggle} />
+      <Ring
+        status={t.status}
+        remainingMs={t.remainingMs}
+        durationMs={t.durationMs}
+        onTap={() => { if (t.status === 'finished') reset(); else toggle(); }}
+      />
       <Controls
         durationMs={t.durationMs}
         atStart={t.remainingMs === t.durationMs && !t.running}

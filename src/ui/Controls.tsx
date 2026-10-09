@@ -1,6 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import { PRESET_FULL_MS, PRESET_HALF_MS } from '../core/timer';
-import { PauseIcon, PlayIcon, SoundIcon, StopIcon } from './icons';
+import { PauseIcon, PlayIcon, ResetIcon, SoundIcon } from './icons';
 
 interface ControlsProps {
   durationMs: number;
@@ -26,7 +26,7 @@ export const Controls = memo(function Controls(p: ControlsProps) {
       </div>
       <div className="primary-row">
         <SecondaryButton onClick={p.onReset} disabled={p.atStart} ariaLabel="Reset timer">
-          <StopIcon size={18} />
+          <ResetIcon />
         </SecondaryButton>
         <button
           type="button"

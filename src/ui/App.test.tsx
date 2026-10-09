@@ -210,3 +210,84 @@ describe('App: tap the ring', () => {
     expect(main().hasAttribute('data-paused')).toBe(true);
   });
 });
+
+describe('App: haptics', () => {
+  let vibrate: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    vibrate = vi.fn(() => true);
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate });
+  });
+  afterEach(() => { Reflect.deleteProperty(navigator, 'vibrate'); });
+
+  it('pulses when the warning starts and double-pulses at the finish', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 49_999;
+    tick();
+    expect(vibrate).not.toHaveBeenCalled();
+
+    clock.t = 50_000; // 10 000 ms left
+    tick();
+    expect(vibrate.mock.calls).toEqual([[40]]);
+    clock.t = 55_000;
+    tick();
+    expect(vibrate).toHaveBeenCalledOnce();
+
+    clock.t = 60_000;
+    tick();
+    expect(vibrate.mock.calls).toEqual([[40], [[60, 60, 60]]]);
+  });
+
+  it('ignores mute', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Mute'));
+    fireEvent.click(button('Start timer'));
+    clock.t = 50_000;
+    tick();
+    expect(vibrate.mock.calls).toEqual([[40]]);
+  });
+
+  it('pulses once on crossing when paused before the mark and resumed', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 49_500; // 10.5 s left
+    fireEvent.click(button('Pause timer'));
+    clock.t = 80_000;
+    fireEvent.click(button('Start timer'));
+    expect(vibrate).not.toHaveBeenCalled();
+    clock.t = 80_500; // crosses 10 000 ms while running
+    tick();
+    expect(vibrate.mock.calls).toEqual([[40]]);
+  });
+
+  it('does not pulse again when paused after the mark and resumed', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 52_000;
+    tick();
+    expect(vibrate).toHaveBeenCalledOnce();
+    fireEvent.click(button('Pause timer'));
+    clock.t = 70_000;
+    fireEvent.click(button('Start timer'));
+    clock.t = 71_000;
+    tick();
+    expect(vibrate).toHaveBeenCalledOnce();
+  });
+
+  it('pulses again on the next run', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 55_000;
+    tick();
+    fireEvent.click(button('Reset timer'));
+    fireEvent.click(button('Start timer'));
+    clock.t = 105_000;
+    tick();
+    expect(vibrate.mock.calls).toEqual([[40], [40]]);
+  });
+});

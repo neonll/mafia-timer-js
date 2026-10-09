@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { readStoredMute, storeMute, type Cues } from '../audio/cues';
 import { WARNING_MS } from '../core/timer';
+import { useHaptics } from '../hooks/useHaptics';
 import { useTimer } from '../hooks/useTimer';
 import logoUrl from '../assets/mafia-logo.png';
 import { Controls } from './Controls';
@@ -44,6 +45,7 @@ export function App({ cues, now }: AppProps) {
 
   const inLastTen = t.remainingMs <= WARNING_MS;
   const warning = inLastTen && t.running;
+  useHaptics(t.status, warning);
   // Announced once each: the text only changes when a run enters the last ten
   // seconds and when it finishes (a reset clears it for the next run).
   const announcement =

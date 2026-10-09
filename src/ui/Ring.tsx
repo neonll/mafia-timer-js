@@ -11,13 +11,15 @@ interface RingProps {
   status: TimerStatus;
   remainingMs: number;
   durationMs: number;
-  /** Same start/pause toggle as the primary button; the whole ring is a tap target. */
+  /** Same start/pause toggle as the primary button (pointer-only shortcut). */
   onToggle: () => void;
 }
 
 /**
- * The ring is a button (tap to start/pause), so everything inside is phrasing
- * content: spans styled as blocks, no interactive descendants.
+ * Tapping the ring starts/pauses: a transparent hit area over it, hidden from
+ * assistive tech and out of the tab order (the primary button is the
+ * accessible control; Space covers keyboards). Inert once time is up, so a tap
+ * on TIME'S UP never restarts by accident.
  */
 export function Ring({ status, remainingMs, durationMs, onToggle }: RingProps) {
   const display = Math.ceil(remainingMs / 1000);
@@ -30,12 +32,7 @@ export function Ring({ status, remainingMs, durationMs, onToggle }: RingProps) {
   const dotTop = ((SIZE / 2 + Math.sin(angle) * R) / SIZE) * 100;
 
   return (
-    <button
-      type="button"
-      className="ring"
-      onClick={onToggle}
-      aria-label={status === 'running' ? 'Pause timer' : 'Start timer'}
-    >
+    <div className="ring">
       <svg className="ring-svg" viewBox={`0 0 ${String(SIZE)} ${String(SIZE)}`} aria-hidden="true">
         <defs>
           <filter id="ring-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -62,43 +59,52 @@ export function Ring({ status, remainingMs, durationMs, onToggle }: RingProps) {
       </svg>
 
       {pct > 0.001 && pct < 0.999 && (
-        <span className="ring-dot" style={{ left: `${String(dotLeft)}%`, top: `${String(dotTop)}%` }} />
+        <div className="ring-dot" style={{ left: `${String(dotLeft)}%`, top: `${String(dotTop)}%` }} />
       )}
 
       {TICKS.map((deg) => (
-        <span key={deg} className="ring-tick" style={{ transform: `translate(-50%, -100%) rotate(${String(deg)}deg)` }}>
-          <span className="ring-tick-mark" />
-        </span>
+        <div key={deg} className="ring-tick" style={{ transform: `translate(-50%, -100%) rotate(${String(deg)}deg)` }}>
+          <div className="ring-tick-mark" />
+        </div>
       ))}
 
-      <span className="ring-center">
-        <span className="ring-digits" role="timer" aria-live="off" aria-label={`${String(display)} seconds left`}>
+      <div className="ring-center">
+        <div className="ring-digits" role="timer" aria-live="off" aria-label={`${String(display)} seconds left`}>
           {String(display).padStart(2, '0')}
-        </span>
+        </div>
         <RingLabel status={status} durationMs={durationMs} />
-      </span>
-    </button>
+      </div>
+
+      <button
+        type="button"
+        className="ring-hit"
+        tabIndex={-1}
+        aria-hidden="true"
+        disabled={status === 'finished'}
+        onClick={onToggle}
+      />
+    </div>
   );
 }
 
 /** idle/running: the preset; paused: PAUSED; finished: TIME'S UP (uppercased by CSS). */
 function RingLabel({ status, durationMs }: { status: TimerStatus; durationMs: number }) {
-  if (status === 'finished') return <span className="ring-label" data-status="finished">{"Time's up"}</span>;
+  if (status === 'finished') return <div className="ring-label" data-status="finished">{"Time's up"}</div>;
   if (status === 'paused') {
     return (
-      <span className="ring-label" data-status="paused">
+      <div className="ring-label" data-status="paused">
         <svg className="ring-label-glyph" width="9" height="10" viewBox="0 0 9 10" aria-hidden="true">
           <rect x="0" y="0" width="3" height="10" fill="currentColor" />
           <rect x="6" y="0" width="3" height="10" fill="currentColor" />
         </svg>
         Paused
-      </span>
+      </div>
     );
   }
   return (
-    <span className="ring-label">
+    <div className="ring-label">
       <span className="ring-label-dot" data-preset={durationMs === PRESET_FULL_MS ? 'full' : 'half'} />
       {durationMs / 1000}s
-    </span>
+    </div>
   );
 }

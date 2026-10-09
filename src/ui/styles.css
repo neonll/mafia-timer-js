@@ -159,26 +159,35 @@ button:focus-visible {
 
 /* ---- ring ------------------------------------------------------------------ */
 
-/* The ring is a chrome-less button: tap anywhere on it to start/pause. */
 .ring {
   position: relative;
   flex: none;
-  display: block;
   width: var(--ring);
   height: var(--ring);
+  transition: transform 0.12s;
+}
+
+/* Pointer-only tap target over the whole ring (start/pause); inert once finished. */
+.ring-hit {
+  position: absolute;
+  inset: 0;
   padding: 0;
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: inherit;
   cursor: pointer;
-  appearance: none;
-  transition: transform 0.12s;
+  touch-action: manipulation;
 }
 
-.ring:active {
+.ring-hit:disabled {
+  cursor: default;
+}
+
+.ring-hit:focus-visible {
+  outline: none;
+}
+
+.ring:has(.ring-hit:active:enabled) {
   transform: scale(0.985);
 }
 
@@ -245,7 +254,6 @@ button:focus-visible {
 }
 
 .ring-tick-mark {
-  display: block;
   width: 1px;
   height: 6px;
   margin-top: -3px;
@@ -454,7 +462,7 @@ button:focus-visible {
   }
 
   .btn-primary:active,
-  .ring:active {
+  .ring:has(.ring-hit:active:enabled) {
     transform: none;
   }
 }

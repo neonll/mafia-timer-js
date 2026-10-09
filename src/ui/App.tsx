@@ -45,7 +45,7 @@ export function App({ cues, now }: AppProps) {
 
   const inLastTen = t.remainingMs <= WARNING_MS;
   const warning = inLastTen && t.running;
-  useHaptics(t.status, warning);
+  useHaptics(t.status, t.remainingMs, warning);
   // Announced once each: the text only changes when a run enters the last ten
   // seconds and when it finishes (a reset clears it for the next run).
   const announcement =

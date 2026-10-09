@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCues, type Cues } from '../audio/cues';
 import { FakeAudioContext, cuesOptions, flush, type Clock } from '../test/fakeAudio';
-import { noAnimationFrames } from '../test/dom';
+import { noAnimationFrames, restoreVisibility, setVisibility } from '../test/dom';
 import { App } from './App';
 
 const fakeCues = (): Cues => ({
@@ -21,9 +21,9 @@ afterEach(() => { localStorage.clear(); });
 
 const digits = () => screen.getByRole('timer').textContent;
 const main = () => screen.getByRole('main');
-/** The ring button shares the Start/Pause names with the primary button, which comes last. */
-const button = (name: string) => screen.getAllByRole('button', { name }).at(-1) as HTMLElement;
-const ring = () => document.querySelector('button.ring') as HTMLButtonElement;
+const button = (name: string) => screen.getByRole('button', { name });
+/** The pointer-only tap target over the ring (hidden from assistive tech). */
+const ringHit = () => document.querySelector('.ring-hit') as HTMLButtonElement;
 /** Recompute the view from the clock (what the rAF loop does every frame). */
 const tick = () => { act(() => { document.dispatchEvent(new Event('visibilitychange')); }); };
 
@@ -189,25 +189,43 @@ describe('App: ring states', () => {
 });
 
 describe('App: tap the ring', () => {
-  it('starts and pauses like the primary button, mirroring its label', () => {
+  it('starts and pauses like the primary button, without being an accessible control', () => {
     const clock = { t: 0 };
     const c = fakeCues();
     render(<App cues={c} now={() => clock.t} />);
-    expect(ring().type).toBe('button');
-    expect(ring().getAttribute('aria-label')).toBe('Start timer');
-    expect(ring().querySelector('[role="timer"]')).not.toBeNull();
+    expect(ringHit().getAttribute('aria-hidden')).toBe('true');
+    expect(ringHit().tabIndex).toBe(-1);
+    expect(screen.getAllByRole('button', { name: /timer/ })).toHaveLength(2); // primary + reset
+    expect(screen.getByRole('timer').closest('button')).toBeNull();
 
-    fireEvent.click(ring());
+    fireEvent.click(ringHit());
     expect(c.unlock).toHaveBeenCalledOnce(); // synchronously inside the gesture
     expect(c.playStart).toHaveBeenCalledOnce();
-    expect(ring().getAttribute('aria-label')).toBe('Pause timer');
-    expect(button('Pause timer').className).toBe('btn-primary');
+    expect(button('Pause timer')).toBeTruthy();
 
     clock.t = 3_000;
-    fireEvent.click(ring());
-    expect(ring().getAttribute('aria-label')).toBe('Start timer');
+    fireEvent.click(ringHit());
+    expect(button('Start timer')).toBeTruthy();
     expect(digits()).toBe('57');
     expect(main().hasAttribute('data-paused')).toBe(true);
+  });
+
+  it('does nothing once time is up; the primary button restarts', () => {
+    const clock = { t: 0 };
+    const c = fakeCues();
+    render(<App cues={c} now={() => clock.t} />);
+    fireEvent.click(ringHit());
+    clock.t = 60_000;
+    tick();
+    expect(main().hasAttribute('data-finished')).toBe(true);
+
+    fireEvent.click(ringHit());
+    expect(main().hasAttribute('data-finished')).toBe(true);
+    expect(c.playStart).toHaveBeenCalledOnce();
+
+    fireEvent.click(button('Start timer'));
+    expect(main().hasAttribute('data-finished')).toBe(false);
+    expect(c.playStart).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -217,7 +235,10 @@ describe('App: haptics', () => {
     vibrate = vi.fn(() => true);
     Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate });
   });
-  afterEach(() => { Reflect.deleteProperty(navigator, 'vibrate'); });
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'vibrate');
+    restoreVisibility();
+  });
 
   it('pulses when the warning starts and double-pulses at the finish', () => {
     const clock = { t: 0 };
@@ -287,6 +308,47 @@ describe('App: haptics', () => {
     fireEvent.click(button('Reset timer'));
     fireEvent.click(button('Start timer'));
     clock.t = 105_000;
+    tick();
+    expect(vibrate.mock.calls).toEqual([[40], [40]]);
+  });
+
+  it('stays silent for a finish that happened while the page was hidden', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 40_000;
+    act(() => { setVisibility('hidden'); });
+    clock.t = 70_000; // the run ended unobserved
+    act(() => { setVisibility('visible'); });
+    expect(main().hasAttribute('data-finished')).toBe(true);
+    expect(vibrate).not.toHaveBeenCalled();
+  });
+
+  it('stays silent for a warning crossed while hidden, and buzzes live again afterwards', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 45_000;
+    act(() => { setVisibility('hidden'); });
+    clock.t = 52_000; // 8 s left on return
+    act(() => { setVisibility('visible'); });
+    expect(main().hasAttribute('data-warning')).toBe(true);
+    expect(vibrate).not.toHaveBeenCalled();
+
+    clock.t = 60_000;
+    tick();
+    expect(vibrate.mock.calls).toEqual([[[60, 60, 60]]]);
+  });
+
+  it('re-arms on every new run (preset switch mid-warning, then start)', () => {
+    const clock = { t: 0 };
+    render(<App cues={fakeCues()} now={() => clock.t} />);
+    fireEvent.click(button('Start timer'));
+    clock.t = 55_000;
+    tick();
+    fireEvent.click(button('30 seconds'));
+    fireEvent.click(button('Start timer'));
+    clock.t = 75_000;
     tick();
     expect(vibrate.mock.calls).toEqual([[40], [40]]);
   });

@@ -9,7 +9,6 @@ export default defineConfig({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'robots.txt', 'sounds/*.mp3', 'icons/*.png'],
       manifest: {
         name: 'Mafia Timer',
         short_name: 'Mafia',
@@ -17,7 +16,6 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
-        orientation: 'portrait',
         theme_color: '#000000',
         background_color: '#000000',
         icons: [
@@ -27,6 +25,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Everything in dist/ (public/ included): app shell, font, logo, icons and both cues.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,mp3,txt,webmanifest}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
